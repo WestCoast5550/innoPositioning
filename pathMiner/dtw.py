@@ -62,6 +62,7 @@ for ii in range(0, len(trajectory_list)):
                                                                    d_matrix[p1_i-1][p2_i-1])
 
 #search of minimal path
+        f = open('minimalPathes.txt', 'w')
         dist = 0
         min_path_length = 1e300
         min_path = d_matrix[k][l]
@@ -75,8 +76,8 @@ for ii in range(0, len(trajectory_list)):
                     l = l + 1
                 if minn == d_matrix[k + 1][l]:
                     k = k + 1
-                min_path = min_path + min
-        print min_path
+                min_path = min_path + minn
+        f.write(i1 + '-' + i2 + ':' + min_path)
 
 
 
