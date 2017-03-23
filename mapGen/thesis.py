@@ -182,7 +182,57 @@ def build_image_tree_layer(Tx, walls):
     return layer_points
 
 
-def calculate_reflection_paths2(image_tree, reflection_number, Tx, Rx):
+def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx):
+    paths = []
+
+    for i in last_layer:
+        is_correct = True
+        path = [Tx]
+        image_point = image_tree.tree[i].data
+        wall = image_point.assigned_wall
+        intersection_point = get_intersection_point(Tx, image_point, wall)
+        if intersection_point != -1:
+            path.append(intersection_point)
+        else:
+            path.clear()
+            continue
+        image_point_ = image_tree.tree[i]
+        for j in range(2, reflection_number + 1):
+            image_point = image_point_.parent.data
+            image_point_ = image_point_.parent
+            wall = image_point.assigned_wall
+            intersection_point = get_intersection_point(path[-1], image_point, wall)
+            if intersection_point != -1:
+                is_correct = True
+                path.append(intersection_point)
+            else:
+                path.clear()
+                is_correct = False
+                break
+        if is_correct:
+            path.append(Rx)
+            path.reverse()
+            paths.append(path)
+
+    return paths
+
+
+def get_all_paths(image_tree, Tx, Rx):
+    paths = []
+    paths.append([[Tx, Rx]])
+    reflection_number = 1
+    paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(0), reflection_number, Tx, Rx))
+    reflection_number += 1
+
+    for i in image_tree.get_children_indices(0):
+        paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(i), reflection_number, Tx, Rx))
+        for j in image_tree.get_children_indices(i):
+            paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(j), reflection_number + 1, Tx, Rx))
+
+    return list(itertools.chain.from_iterable(paths))
+
+
+def calculate_reflection_paths1(image_tree, reflection_number, Tx, Rx):
     paths = []
     is_correct = True
     if reflection_number == 0:
@@ -191,7 +241,7 @@ def calculate_reflection_paths2(image_tree, reflection_number, Tx, Rx):
         for image_point in image_tree[-1]:
             path = [Rx]
             wall = image_point.assigned_wall
-            p = intersect_line(Rx, image_point, wall)
+            p = get_intersection_point(Rx, image_point, wall)
             if p != -1:
                 path.append(p)
             else:
@@ -200,7 +250,7 @@ def calculate_reflection_paths2(image_tree, reflection_number, Tx, Rx):
                 continue
             for i in range(2, reflection_number + 1):
                 wall = image_tree[-i][0].assigned_wall
-                p = intersect_line(path[-1], image_tree[-i][0], wall)
+                p = get_intersection_point(path[-1], image_tree[-i][0], wall)
                 if p != -1:
                     is_correct = True
                     path.append(p)
@@ -224,7 +274,7 @@ def check_if_point_belongs_to_wall(p, wall):
     return False
 
 
-def intersect_line(p1, p2, wall):
+def get_intersection_point(p1, p2, wall):
     intersect_epsilon = 0.1
     a = wall.plane_equation[0]
     b = wall.plane_equation[1]
@@ -275,124 +325,6 @@ def get_all_paths2(walls, Tx, Rx):
     return list(itertools.chain.from_iterable(paths))
 
 
-def calculate_reflection_paths(image_tree, max_reflection, Tx, Rx):
-    paths = []
-    is_correct = True
-    paths.append([Rx, Tx])
-    tree = image_tree
-    first_layer = tree.children
-    for image_point in first_layer:
-        is_correct = True
-        path = [Tx]
-        wall = image_point.data.assigned_wall
-        p = intersect_line(Tx, image_point.data, wall)
-        if p != -1:
-            path.append(p)
-        else:
-            path.clear()
-            is_correct = False
-            continue
-        if is_correct:
-            path.append(Rx)
-            path.reverse()
-            paths.append(path)
-
-    for image_point in first_layer:
-        second_layer = image_point.children
-        for image_point1 in second_layer:
-            is_correct = True
-            path = [Tx]
-            wall = image_point1.data.assigned_wall
-            p = intersect_line(Tx, image_point1.data, wall)
-            if p != -1:
-                path.append(p)
-            else:
-                path.clear()
-                is_correct = False
-                continue
-            wall = image_point.data.assigned_wall
-            p = intersect_line(path[-1], image_point.data, wall)
-            if p != -1:
-                path.append(p)
-            else:
-                path.clear()
-                is_correct = False
-                continue
-            if is_correct:
-                path.append(Rx)
-                path.reverse()
-                paths.append(path)
-
-    for image_point in first_layer:
-        second_layer = image_point.children
-        for image_point1 in second_layer:
-            third_layer = image_point1.children
-            for image_point2 in third_layer:
-                is_correct = True
-                path = [Tx]
-                wall = image_point2.data.assigned_wall
-                p = intersect_line(Tx, image_point2.data, wall)
-                if p != -1:
-                    path.append(p)
-                else:
-                    path.clear()
-                    is_correct = False
-                    continue
-                wall = image_point1.data.assigned_wall
-                p = intersect_line(path[-1], image_point1.data, wall)
-                if p != -1:
-                    path.append(p)
-                else:
-                    path.clear()
-                    is_correct = False
-                    continue
-                wall = image_point.data.assigned_wall
-                p = intersect_line(path[-1], image_point.data, wall)
-                if p != -1:
-                    path.append(p)
-                else:
-                    path.clear()
-                    is_correct = False
-                    continue
-                if is_correct:
-                    path.append(Rx)
-                    path.reverse()
-                    paths.append(path)
-
-    return paths
-
-'''
-    for reflection_number in range(1, max_reflection):
-        for image_point in first_layer:
-            path = [Rx]
-            wall = image_point.data.assigned_wall
-            p = intersect_line(Rx, image_point.data, wall)
-            if p != -1:
-                path.append(p)
-            else:
-                path.clear()
-                is_correct = False
-                continue
-            for i in range(2, reflection_number + 1):
-                i_p = image_point.parent
-                wall = image_point.parent.data.assigned_wall
-                p = intersect_line(path[-1], i_p.data, wall)
-                if p != -1:
-                    is_correct = True
-                    path.append(p)
-                else:
-                    path.clear()
-                    is_correct = False
-                    break
-            if is_correct:
-                path.append(Tx)
-                path.reverse()
-                paths.append(path)
-            tree = tree.children
-
-    return list(itertools.chain.from_iterable(paths))
-    '''
-
 def build_image_tree(walls, Tx):
     image_tree = Tree(Tx)
     first_layer = build_image_tree_layer(Tx, walls)  # first layer
@@ -423,15 +355,29 @@ def calculate_traversed_distance(path):
 # for one position
 # from ARIADNE
 def get_signal_strength(room, image_tree, Tx, Rx):
-    paths = calculate_reflection_paths(image_tree, 3, Tx, Rx)
+    paths = get_all_paths(image_tree, Tx, Rx)
 
+    '''
     if Tx.x == 11 and Tx.y == 3 and Tx.z == 1:
+        one = 0
+        two = 0
+        three = 0
         for path in paths:
             print()
             for p in path:
                 print(p)
+            if len(path) == 3:
+                one += 1
+            if len(path) == 4:
+                two += 1
+            if len(path) == 5:
+                three += 1
+
+        print(one, two, three)
 
         print(len(paths))
+        print(len(paths))
+    '''
     # calculate signal strength for each path, then sum
     signal_strength = 0
     '''
