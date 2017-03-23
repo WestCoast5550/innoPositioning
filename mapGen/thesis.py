@@ -38,6 +38,9 @@ class Point:
         other_ = (other.x ** 2) + (other.y ** 2)
         return self_ < other_
 
+    def is_equal(self, other):
+        return self.x == other.x and self.y == other.y and self.z == other.z
+
     def __str__(self):
         return '(' + str(self.x) + ', ' + str(self.y) + ', ' + str(self.z) + ') '
 
@@ -121,6 +124,10 @@ class Building:
                                Wall(Point(0, 10, 4), Point(6, 10, 4), Point(6, 17, 4), Point(0, 17, 4), 11),
                                # floor
                                Wall(Point(0, 10, 0), Point(6, 10, 0), Point(6, 17, 0), Point(0, 17, 0), 12)))
+        all_walls = []
+        for room in self.rooms:
+            all_walls.append(room.walls)
+        self.all_walls = list(itertools.chain.from_iterable(all_walls))
 
         self.AP.assigned_room = self.rooms[0]
 
@@ -184,45 +191,65 @@ def build_image_tree_layer(Tx, walls):
 
 def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx):
     paths = []
+    ray_distance_threshold = 25
 
-    for i in last_layer:
-        is_correct = True
-        path = [Tx]
-        image_point = image_tree.tree[i].data
-        wall = image_point.assigned_wall
-        intersection_point = get_intersection_point(Tx, image_point, wall)
-        if intersection_point != -1:
-            path.append(intersection_point)
-        else:
-            path.clear()
-            continue
-        image_point_ = image_tree.tree[i]
-        for j in range(2, reflection_number + 1):
-            image_point = image_point_.parent.data
-            image_point_ = image_point_.parent
+    #if Tx.is_equal(Rx):
+     #   return paths
+
+    if reflection_number == 0:
+        traversed_distance = calculate_traversed_distance(Tx, Rx)
+        # if traversed distance is too long - skip this path
+        if traversed_distance > ray_distance_threshold:
+            return paths
+        # else find this path if exists
+        paths = [[Rx, Tx, traversed_distance]]  # path[-1] contains traversed distance
+    else:
+        for i in last_layer:
+            image_point = image_tree.tree[i].data
+
+            traversed_distance = calculate_traversed_distance(Tx, image_point)
+            # if traversed distance is too long - skip this path
+            if traversed_distance > ray_distance_threshold:
+                continue
+
+            # else find this path if exists
+            path = [traversed_distance]  # path[0] contains traversed distance
+            is_correct = True
+            path.append(Tx)
             wall = image_point.assigned_wall
-            intersection_point = get_intersection_point(path[-1], image_point, wall)
+            intersection_point = get_intersection_point(Tx, image_point, wall)
             if intersection_point != -1:
-                is_correct = True
                 path.append(intersection_point)
             else:
                 path.clear()
-                is_correct = False
-                break
-        if is_correct:
-            path.append(Rx)
-            path.reverse()
-            paths.append(path)
+                continue
+            image_point_ = image_tree.tree[i]
+            for j in range(2, reflection_number + 1):
+                image_point = image_point_.parent.data
+                image_point_ = image_point_.parent
+                wall = image_point.assigned_wall
+                intersection_point = get_intersection_point(path[-1], image_point, wall)
+                if intersection_point != -1:
+                    is_correct = True
+                    path.append(intersection_point)
+                else:
+                    path.clear()
+                    is_correct = False
+                    break
+            if is_correct:
+                path.append(Rx)
+                path.reverse()  # path[-1] contains traversed distance
+                paths.append(path)
 
     return paths
 
 
 def get_all_paths(image_tree, Tx, Rx):
-    paths = []
-    paths.append([[Tx, Rx]])
+    reflection_number = 0
+    paths = [calculate_reflection_paths(image_tree, 0, reflection_number, Tx, Rx)]
     reflection_number = 1
     paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(0), reflection_number, Tx, Rx))
-    reflection_number += 1
+    reflection_number = 2
 
     for i in image_tree.get_children_indices(0):
         paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(i), reflection_number, Tx, Rx))
@@ -301,63 +328,31 @@ def get_intersection_point(p1, p2, wall):
     return -1
 
 
-def get_all_paths2(walls, Tx, Rx):
-    image_tree = [Tx]
-    paths = [calculate_reflection_paths(image_tree, 0, Tx, Rx)]
-    image_tree.append(build_image_tree_layer(Tx, walls))  # first layer
-    paths.append(calculate_reflection_paths(image_tree, 1, Tx, Rx))
-    points_on_a_layer = len(image_tree[-1])
-    for i in range(0, points_on_a_layer):
-        image_tree.append(build_image_tree_layer(image_tree[-1][0], walls))  # second layer
-        paths.append(calculate_reflection_paths(image_tree, 2, Tx, Rx))
-        points_on_a_layer_2 = len(image_tree[-1])
-        for j in range(0, points_on_a_layer_2):
-            image_tree.append(build_image_tree_layer(image_tree[-1][0], walls))  # third layer
-            paths.append(calculate_reflection_paths(image_tree, 3, Tx, Rx))
-            # delete used 3rd layer and first point on 2nd (which is parent of 3rd)
-            image_tree.pop(-1)
-            image_tree[-1].pop(0)
-            if len(image_tree[-1]) == 0:
-                image_tree.pop(-1)
-
-        image_tree[-1].pop(0)
-
-    return list(itertools.chain.from_iterable(paths))
-
-
 def build_image_tree(walls, Tx):
     image_tree = Tree(Tx)
     first_layer = build_image_tree_layer(Tx, walls)  # first layer
     image_tree.add_children(first_layer, 0)
 
     for i in image_tree.get_children_indices(0):
-        second_layer = build_image_tree_layer(image_tree.tree[i].data, walls)
+        second_layer = build_image_tree_layer(image_tree.tree[i].data, walls)  # second layer
         image_tree.add_children(second_layer, i)
         for j in image_tree.get_children_indices(i):
-            third_layer = build_image_tree_layer(image_tree.tree[j].data, walls)
+            third_layer = build_image_tree_layer(image_tree.tree[j].data, walls)  # third layer
             image_tree.add_children(third_layer, j)
 
     return image_tree
 
 
 #######################################################################################################################
-def get_reflection_length(a, b):
+def calculate_traversed_distance(a, b):
     return math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2)
-
-
-def calculate_traversed_distance(path):
-    traversed_distance = 0
-    for i in range(0, len(path) - 1):
-        traversed_distance += get_reflection_length(path[i], path[i + 1])
-    return traversed_distance
 
 
 # for one position
 # from ARIADNE
-def get_signal_strength(room, image_tree, Tx, Rx):
+def get_signal_strength(image_tree, Tx, Rx):
     paths = get_all_paths(image_tree, Tx, Rx)
 
-    '''
     if Tx.x == 11 and Tx.y == 3 and Tx.z == 1:
         one = 0
         two = 0
@@ -377,30 +372,37 @@ def get_signal_strength(room, image_tree, Tx, Rx):
 
         print(len(paths))
         print(len(paths))
-    '''
+
+
     # calculate signal strength for each path, then sum
     signal_strength = 0
-    '''
+
     for path in paths:
-        num_of_reflections = len(path) - 2
+        num_of_reflections = len(path) - 3  # len(path) minus start point, end point and path length stored in path[-1]
         num_of_transmissions = 0  # TODO
-        traversed_distance = calculate_traversed_distance(path)
-        if traversed_distance == 0:
-            return 0
-        signal_strength += (P0 - 10 * math.log10(
-            traversed_distance) - reflection_coef * num_of_reflections - transmission_coef * num_of_transmissions)
+        traversed_distance = path[-1]
+        if traversed_distance == 0:  # if AP
+            return -1
+        signal_strength += (P0 - 10 * math.log10(traversed_distance) -
+                            reflection_coef * num_of_reflections -
+                            transmission_coef * num_of_transmissions)
     signal_strength /= len(paths)
-    '''
+
     return round(signal_strength, 3)
 
 
 def calculate_signal_strength_matrix(building, room, signal_strength_matrix):
-    image_tree = build_image_tree(room.walls, building.AP)
+    image_tree = build_image_tree(building.all_walls, building.AP)  #(room.walls, building.AP)
+    for x in range(0, building._3D_measures[0]):
+        for y in range(0, building._3D_measures[1]):
+            for z in range(building._3D_measures[2]):
+                signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP)
+    '''
     for x in range(0, room.length):
         for y in range(0, room.width):
             for z in range(room.height):
-                signal_strength_matrix[x][y][z] = get_signal_strength(room, image_tree, Point(x, y, z), building.AP)
-
+                signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP)
+    '''
 
 #######################################################################################################################
 
@@ -413,39 +415,3 @@ for x in range(0, building.rooms[0].length):
         print(signal_strength_matrix[x][y][3], end=" ")
     print()
 print()
-
-'''
-Tx = Point(2, 5, 1)
-Rx = Point(11, 3, 1)
-
-image_tree = [Tx]
-paths = [calculate_reflection_paths_line(image_tree, 0, Tx, Rx)]
-image_tree.append(build_image_tree(Tx, room.walls))  # first layer
-
-paths.append(calculate_reflection_paths_line(image_tree, 1, Tx, Rx))
-
-paths2 = fun2(room.walls, Tx, Rx)
-for p in paths2:
-    for pp in p:
-        if 15 < pp.x < 0 or 10 < pp.y < 0 or 4 < pp.z < 0:
-            print(pp)
-
-one = 0
-two = 0
-three = 0
-for p in paths2:
-    if len(p) == 3:
-        one += 1
-
-    if len(p) == 4:
-        two += 1
-
-    if len(p) == 5:
-        three += 1
-    for pp in p:
-        print(pp)
-    print()
-
-print(len(paths2))
-print(one, two, three)
-'''
