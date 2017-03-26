@@ -30,7 +30,7 @@ def distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def mean(p1, p2):
-    return Point((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+    return Point((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0)
 
 def _dtw_distance(ts_a, ts_b, d = lambda x,y: abs(x-y)):
     
@@ -104,13 +104,11 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
     new_data = []
     old_data = []
     i = 0
-    print len(centroids)
     for n in range(num_iter):
         counter += 1
         assignments = {}
         #assign data points to clusters
         for ind, i in enumerate(data):
-            print len(i), ind
             min_dist = float('inf')
             closest_clust = None
             for c_ind, j in enumerate(centroids):
@@ -125,6 +123,7 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
     
         #recalculate centroids of clusters
         for key in assignments:
+            
             clust_sum = 0
             old_data = assignments[key]
             while(len(new_data) > 1):
@@ -132,8 +131,7 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
                     new_data.append(centrate(old_data[i], old_data[j]))
                 old_data = new_data
                 new_data = []
-            centroids[key] = new_data
-
+            centroids[key] = old_data
     return centroids
 
 centroids=k_means_clust(data,4,10,4)
