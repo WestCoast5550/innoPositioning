@@ -433,3 +433,6 @@ for y in range(building._3D_measures[1], 0):
     for x in range(0, building._3D_measures[0]):
         print(signal_strength_matrix[x][y][3], end=" ")
     print()
+	
+	
+	
