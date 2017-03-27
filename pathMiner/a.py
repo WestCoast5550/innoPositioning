@@ -30,7 +30,10 @@ def distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 def mean(p1, p2):
-    return Point((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+    a = [0.0]*2
+    a[0] = (p1[0] + p2[0]) / 2.0
+    a[1] = (p1[1] + p2[1]) / 2.0
+    return a
 
 def _dtw_distance(ts_a, ts_b, d = lambda x,y: abs(x-y)):
     
@@ -58,17 +61,18 @@ def _dtw_distance(ts_a, ts_b, d = lambda x,y: abs(x-y)):
     # Return DTW distance given window
     return cost[-1, -1]
 
-def centrate(ts_a, ts_b):
+def centrate(ts_a, ts_b, d = lambda x,y: abs(x-y)):
     M, N = len(ts_a), len(ts_b)
     cost = sys.maxint * np.ones((M, N))
     new_trajectory = []
-    k, l, minn = 0, 0, 0
+    k, l, iii = 0, 0, 0
+    minn = [0.0] * 2
     # Initialize the first row and column
-
+    
     cost[0, 0] = d(ts_a[0], ts_b[0])
     for i in xrange(1, M):
         cost[i, 0] = cost[i-1, 0] + d(ts_a[i], ts_b[0])
-
+    
     for j in xrange(1, N):
         cost[0, j] = cost[0, j-1] + d(ts_a[0], ts_b[j])
     
@@ -78,20 +82,36 @@ def centrate(ts_a, ts_b):
                         min(N, i + 10)):
             choices = cost[i - 1, j - 1], cost[i, j-1], cost[i-1, j]
             cost[i, j] = min(choices) + d(ts_a[i], ts_b[j])
+    print cost
+    new_trajectory.append(mean(ts_a[0], ts_b[0]))
+    while k + 1 < M or l + 1 < N:
+        print k + 1, l + 1, M - 2, N - 2, np.shape(cost)
+        if k + 1 == M:
+            minn[0] = k
+            minn[1] = l + 1
+        elif l + 1 == N:
+            minn[0] = k + 1
+            minn[1] = l
+        else:
+            b = [cost[k + 1][l + 1], cost[k][l + 1], cost[k + 1][l]]
+            iii = b.index(min(b))
+            if iii == 0:
+                minn[0] = k + 1
+                minn[1] = l + 1
+            if iii == 1:
+                minn[0] = k
+                minn[1] = l + 1
+            if iii == 2:
+                minn[0] = k + 1
+                minn[1] = l
+    
+    
+        new_trajectory.append(mean(ts_a[minn[0]], ts_b[minn[1]]))
+        k = minn[0]
+    l = minn[1]
 
-    while k < N - 1 and l < M - 1:
-        minn = min(cost[k + 1][l + 1], cost[k][l + 1], cost[k + 1][l])
-        if minn == cost[k + 1][l + 1]:
-            k = k + 1
-            l = l + 1
-            new_trajectory.append(mean(ts_a[k + 1], ts_b[l + 1]))
-        elif minn == cost[k][l + 1]:
-            l = l + 1
-            new_trajectory.append(mean(ts_a[k], ts_b[l + 1]))
-        elif minn == cost[k + 1][l]:
-            k = k + 1
-            new_trajectory.append(mean(ts_a[k + 1], ts_b[l]))
-
+#print new_trajectory
+    
     return new_trajectory
 
 
@@ -103,17 +123,18 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
     counter = 0
     new_data = []
     old_data = []
-    i = 0
-    print len(centroids)
+    ii = 0
     for n in range(num_iter):
+        print n
         counter += 1
         assignments = {}
         #assign data points to clusters
         for ind, i in enumerate(data):
-            print len(i), ind
             min_dist = float('inf')
             closest_clust = None
             for c_ind, j in enumerate(centroids):
+                if n == 1:
+                    print len(i), len(j)
                 cur_dist = _dtw_distance(i, j, distance)
                 if cur_dist < min_dist:
                     min_dist = cur_dist
@@ -122,18 +143,28 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
                 assignments[closest_clust].append(ind)
             else:
                 assignments[closest_clust] = []
-    
+#        print centroids
         #recalculate centroids of clusters
         for key in assignments:
-            clust_sum = 0
-            old_data = assignments[key]
-            while(len(new_data) > 1):
-                while(i + 1 < len(old_data)):
-                    new_data.append(centrate(old_data[i], old_data[j]))
+            for k in assignments[key]:
+                old_data.append(data[k])
+            #print len(old_data),
+            while(len(old_data) > 1):
+                #print ii + 1
+                while(ii + 1 < len(old_data)):
+#                    print old_data[k]
+#                    print len(new_data),
+                    new_data.append(centrate(old_data[ii], old_data[ii + 1], distance))
+#                    print len(new_data)
+                    ii = ii + 2
                 old_data = new_data
                 new_data = []
-            centroids[key] = new_data
+                ii = 0
+            centroids[key] = old_data[0]
+#            print old_data
+            old_data = []
 
+#    print centroids
     return centroids
 
 centroids=k_means_clust(data,4,10,4)
