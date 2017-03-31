@@ -15,6 +15,7 @@ import matplotlib.pylab as plt
 curr = []
 arr = []
 
+
 f = open('train.txt', 'r')
 for line in f:
     if len(line) > 2:
@@ -41,7 +42,7 @@ def _dtw_distance(ts_a, ts_b, d = lambda x,y: abs(x-y)):
     #ts_a, ts_b = np.array(ts_a), np.array(ts_b)
     M, N = len(ts_a), len(ts_b)
     cost = sys.maxint * np.ones((M, N))
-
+    
     k, l, minn = 0, 0 ,0
     # Initialize the first row and column
     cost[0, 0] = d(ts_a[0], ts_b[0])
@@ -58,13 +59,13 @@ def _dtw_distance(ts_a, ts_b, d = lambda x,y: abs(x-y)):
             choices = cost[i - 1, j - 1], cost[i, j-1], cost[i-1, j]
             cost[i, j] = min(choices) + d(ts_a[i], ts_b[j])
 
-    # Return DTW distance given window
+# Return DTW distance given window
     return cost[-1, -1]
 
 def centrate(ts_a, ts_b, d = lambda x,y: abs(x-y)):
     M, N = len(ts_a), len(ts_b)
     cost = sys.maxint * np.ones((M, N))
-    new_trajectory = []
+    temp_trajectory = []
     k, l, iii = 0, 0, 0
     minn = [0.0] * 2
     # Initialize the first row and column
@@ -82,10 +83,9 @@ def centrate(ts_a, ts_b, d = lambda x,y: abs(x-y)):
                         min(N, i + 10)):
             choices = cost[i - 1, j - 1], cost[i, j-1], cost[i-1, j]
             cost[i, j] = min(choices) + d(ts_a[i], ts_b[j])
-    print cost
-    new_trajectory.append(mean(ts_a[0], ts_b[0]))
+    temp_trajectory.append(mean(ts_a[0], ts_b[0]))
     while k + 1 < M or l + 1 < N:
-        print k + 1, l + 1, M - 2, N - 2, np.shape(cost)
+        #print k + 1, l + 1, M - 2, N - 2, np.shape(cost)
         if k + 1 == M:
             minn[0] = k
             minn[1] = l + 1
@@ -104,28 +104,34 @@ def centrate(ts_a, ts_b, d = lambda x,y: abs(x-y)):
             if iii == 2:
                 minn[0] = k + 1
                 minn[1] = l
-    
-    
-        new_trajectory.append(mean(ts_a[minn[0]], ts_b[minn[1]]))
+                    
+        temp_trajectory.append(mean(ts_a[minn[0]], ts_b[minn[1]]))
         k = minn[0]
-    l = minn[1]
-
-#print new_trajectory
-    
+        l = minn[1]
+    i = 0
+    new_trajectory = []
+    new_trajectory.append(temp_trajectory[0])
+    n = len(temp_trajectory)
+    diff = distance(temp_trajectory[0], temp_trajectory[n - 1]) * 0.01
+    while i < n - 1:
+        if distance(temp_trajectory[i], temp_trajectory[i + 1]) > diff:
+            new_trajectory.append(temp_trajectory[i + 1])
+        i = i + 1
+#print len(ts_a), len(ts_b), len(new_trajectory)
     return new_trajectory
 
 
 
 
 
-def k_means_clust(data, num_clust, num_iter, w = 5):
+def k_means_clust(data, num_clust, num_iter, w = 3):
     centroids = random.sample(data,num_clust)
     counter = 0
     new_data = []
     old_data = []
     ii = 0
     for n in range(num_iter):
-        print n
+        print counter
         counter += 1
         assignments = {}
         #assign data points to clusters
@@ -133,8 +139,7 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
             min_dist = float('inf')
             closest_clust = None
             for c_ind, j in enumerate(centroids):
-                if n == 1:
-                    print len(i), len(j)
+                #print i, j
                 cur_dist = _dtw_distance(i, j, distance)
                 if cur_dist < min_dist:
                     min_dist = cur_dist
@@ -143,33 +148,27 @@ def k_means_clust(data, num_clust, num_iter, w = 5):
                 assignments[closest_clust].append(ind)
             else:
                 assignments[closest_clust] = []
-#        print centroids
         #recalculate centroids of clusters
         for key in assignments:
             for k in assignments[key]:
                 old_data.append(data[k])
-            #print len(old_data),
             while(len(old_data) > 1):
-                #print ii + 1
                 while(ii + 1 < len(old_data)):
-#                    print old_data[k]
-#                    print len(new_data),
                     new_data.append(centrate(old_data[ii], old_data[ii + 1], distance))
-#                    print len(new_data)
                     ii = ii + 2
                 old_data = new_data
                 new_data = []
                 ii = 0
             centroids[key] = old_data[0]
-#            print old_data
             old_data = []
-
-#    print centroids
+                
+                
+    print assignments
     return centroids
 
-centroids=k_means_clust(data,4,10,4)
-for i in centroids:
-    
-    plt.plot(i)
+centroids=k_means_clust(data,5,10,4)
+for c_ind, i in enumerate(centroids):
+    for ind, j in enumerate(i):
+        plt.plot(i[ind])
 
 plt.show()
