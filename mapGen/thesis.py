@@ -10,10 +10,10 @@ import numpy as np
 # import mahotas
 
 EPS = 1E-9
-P0 = -40  # dBm
-reflection_coef = -12.03  # dBm
-transmission_coef = -0.5095  # dBm
-n = 5.0  # attenuation exponent (dBm)
+P0 = -50  # dBm
+reflection_coef = -12.11  # dBm
+transmission_coef = -0.4937  # dBm
+n = 3.0  # attenuation exponent (dBm)
 
 
 # reflection_coef = 0.25
@@ -38,6 +38,12 @@ class Point:
         self_ = (self.x ** 2) + (self.y ** 2)
         other_ = (other.x ** 2) + (other.y ** 2)
         return self_ < other_
+
+    def __sub__(self, other):
+        return Point(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    def __mul__(self, other):
+        return self.x*other.x + self.y*other.y + self.z*other.z
 
     def is_equal(self, other):
         return self.x == other.x and self.y == other.y and self.z == other.z
@@ -88,9 +94,9 @@ class Room:
         self.width = width_
         self.height = height_
         self.walls = [wall1, wall2, wall3, wall4, ceil, floor]
-        self.uvw = [get_direction_vector(wall1.p1, wall4.p1),
-                    get_direction_vector(wall1.p1, wall1.p2),
-                    get_direction_vector(wall1.p1, wall1.p4)]
+        self.uvw = [wall4.p1 - wall1.p1,
+                    wall1.p2 - wall1.p1,
+                    wall1.p4 - wall1.p1]
 
     def __str__(self):
         for wall in self.walls:
@@ -98,14 +104,66 @@ class Room:
         return ''
 
 
-class Building:
-    AP = Point(2, 5, 1)
+class Building455:
+    # AP = Point(2, 5, 1)
+    # number_of_rooms = 2
+    # _3D_measures = [15, 17, 4]
+
+    AP = Point(7, 2, 4)
     number_of_rooms = 2
-    _3D_measures = [15, 17, 4]
+    _3D_measures = [12, 11, 6]
 
     def __init__(self):
         self.rooms = []
-        self.rooms.append(Room(15, 10, 4,
+        self.rooms.append(Room(8, 6, 4,
+                               # walls
+                               Wall(Point(3, 0, 0), Point(12, 0, 0), Point(12, 0, 5), Point(3, 0, 5), 1),
+                               Wall(Point(12, 0, 0), Point(12, 7, 0), Point(12, 7, 5), Point(12, 0, 5), 2),
+                               Wall(Point(12, 7, 0), Point(3, 7, 0), Point(3, 7, 5), Point(12, 7, 5), 3),
+                               Wall(Point(3, 7, 0), Point(3, 0, 0), Point(3, 0, 5), Point(3, 7, 5), 4),
+                               # ceil
+                               Wall(Point(3, 0, 5), Point(12, 0, 5), Point(12, 7, 5), Point(3, 7, 5), 5),
+                               # floor
+                               Wall(Point(3, 0, 0), Point(12, 0, 0), Point(12, 7, 0), Point(3, 7, 0), 6)))
+
+        self.rooms.append(Room(2, 3, 4,
+                               # walls
+                               Wall(Point(0, 7, 0), Point(3, 7, 0), Point(3, 7, 5), Point(0, 7, 5), 7),
+                               Wall(Point(3, 7 , 0), Point(3, 11, 0), Point(3, 11, 5), Point(3, 7, 5), 8),
+                               Wall(Point(3, 11, 0), Point(0, 11, 0), Point(0, 11, 5), Point(3, 11, 5), 9),
+                               Wall(Point(0, 11, 0), Point(0, 7, 0), Point(0, 7, 5), Point(0, 11, 5), 10),
+                               # ceil
+                               Wall(Point(0, 7, 5), Point(3, 7, 5), Point(3 ,11, 5), Point(0, 11, 5), 11),
+                               # floor
+                               Wall(Point(0, 7, 0), Point(3, 7, 0), Point(3, 11, 0), Point(0, 11, 0), 12)))
+
+        '''
+        def __init__(self):
+        self.rooms = []
+        self.rooms.append(Room(3, 6, 4,
+                               # walls
+                               Wall(Point(1, 0, 0), Point(9, 0, 0), Point(9, 0, 4), Point(1, 0, 4), 1),
+                               Wall(Point(9, 0, 0), Point(9, 6, 0), Point(9, 6, 4), Point(9, 0, 4), 2),
+                               Wall(Point(9, 6, 0), Point(1, 6, 0), Point(1, 6, 4), Point(9, 6, 4), 3),
+                               Wall(Point(1, 6, 0), Point(1, 0, 0), Point(1, 0, 4), Point(1, 6, 4), 4),
+                               # ceil
+                               Wall(Point(1, 0, 4), Point(9, 0, 4), Point(9, 6, 4), Point(1, 6, 4), 5),
+                               # floor
+                               Wall(Point(1, 0, 0), Point(9, 0, 0), Point(9, 6, 0), Point(1, 6, 0), 6)))
+
+        self.rooms.append(Room(2, 3, 4,
+                               # walls
+                               Wall(Point(0, 6, 0), Point(2, 6, 0), Point(2, 6, 4), Point(0, 6, 4), 7),
+                               Wall(Point(2, 6 , 0), Point(2, 9, 0), Point(2, 9, 4), Point(2, 6, 4), 8),
+                               Wall(Point(2, 9, 0), Point(0, 9, 0), Point(0, 9, 4), Point(2, 9, 4), 9),
+                               Wall(Point(0, 9, 0), Point(0, 6, 0), Point(0, 6, 4), Point(0, 9, 4), 10),
+                               # ceil
+                               Wall(Point(0, 6, 4), Point(2, 6, 4), Point(2 ,9, 4), Point(0, 9 , 4), 11),
+                               # floor
+                               Wall(Point(0, 6, 0), Point(2, 6, 0), Point(2, 9, 0), Point(0, 9, 0), 12)))
+        '''
+
+        '''self.rooms.append(Room(15, 10, 4,
                                # walls
                                Wall(Point(0, 0, 0), Point(15, 0, 0), Point(15, 0, 4), Point(0, 0, 4), 1),
                                Wall(Point(15, 0, 0), Point(15, 10, 0), Point(15, 10, 4), Point(15, 0, 4), 2),
@@ -125,6 +183,7 @@ class Building:
                                Wall(Point(0, 10, 4), Point(6, 10, 4), Point(6, 17, 4), Point(0, 17, 4), 11),
                                # floor
                                Wall(Point(0, 10, 0), Point(6, 10, 0), Point(6, 17, 0), Point(0, 17, 0), 12)))
+        '''
         all_walls = []
         for room in self.rooms:
             all_walls.append(room.walls)
@@ -138,7 +197,47 @@ class Building:
         return ''
 
 
-class Tree_Node(object):
+class Building503:
+    AP = Point(6, 12, 1)
+    number_of_rooms = 2
+    _3D_measures = [15, 11, 6]
+
+    def __init__(self):
+        self.rooms = []
+        self.rooms.append(Room(6, 9, 4,
+                               # walls
+                               Wall(Point(0, 0, 0), Point(7, 0, 0), Point(7, 0, 5), Point(0, 0, 5), 1),
+                               Wall(Point(7, 0, 0), Point(7, 10, 0), Point(7, 10, 5), Point(7, 0, 5), 2),
+                               Wall(Point(7, 10, 0), Point(0, 10, 0), Point(0, 10, 5), Point(7, 10, 5), 3),
+                               Wall(Point(0, 10, 0), Point(0, 0, 0), Point(0, 0, 5), Point(0, 10, 5), 4),
+                               # ceil
+                               Wall(Point(0, 0, 5), Point(7, 0, 5), Point(7, 10, 5), Point(0, 10, 5), 5),
+                               # floor
+                               Wall(Point(0, 0, 0), Point(7, 0, 0), Point(7, 10, 0), Point(0, 10, 0), 6)))
+        self.rooms.append(Room(6, 9, 4,
+                               # walls
+                               Wall(Point(7, 0, 0), Point(14, 0, 0), Point(10, 0, 5), Point(7, 0, 5), 7),
+                               Wall(Point(14, 0, 0), Point(14, 10, 0), Point(14, 10, 5), Point(14, 0, 5), 8),
+                               Wall(Point(14, 10, 0), Point(7, 10, 0), Point(7, 10, 5), Point(14, 10, 5), 9),
+                               Wall(Point(7, 10, 0), Point(7, 0, 0), Point(7, 0, 5), Point(7, 10, 5), 10),
+                               # ceil
+                               Wall(Point(7, 0, 5), Point(14, 0, 5), Point(14, 10, 5), Point(7, 10, 5), 11),
+                               # floor
+                               Wall(Point(7, 0, 0), Point(14, 0, 0), Point(14, 10, 0), Point(7, 10, 0), 12)))
+        all_walls = []
+        for room in self.rooms:
+            all_walls.append(room.walls)
+        self.all_walls = list(itertools.chain.from_iterable(all_walls))
+
+        self.AP.assigned_room = self.rooms[0]
+
+    def __str__(self):
+        for room in self.rooms:
+            print(room)
+        return ''
+
+
+class TreeNode(object):
     def __init__(self, data, parent):
         self.data = data
         self.parent = parent
@@ -147,11 +246,11 @@ class Tree_Node(object):
 
 class Tree(object):
     def __init__(self, Tx):
-        self.tree = [Tree_Node(Tx, None)]
+        self.tree = [TreeNode(Tx, None)]
 
     def add_children(self, children, parent_index):
         for child in children:
-            self.tree.append(Tree_Node(child, self.tree[parent_index]))
+            self.tree.append(TreeNode(child, self.tree[parent_index]))
             self.tree[parent_index].children_indices.append(len(self.tree) - 1)
 
     def get_children(self, parent_index):
@@ -173,6 +272,13 @@ def get_direction_vector(a, b):
     return [b.x - a.x, b.y - a.y, b.z - a.z]
 
 
+def is_pos_in_same_room_with_AP(position, building):
+    room_with_AP = building.AP.assigned_room
+    s = position - room_with_AP.walls[0].p1
+    uvw = room_with_AP.uvw
+    return 0 < s*uvw[0] < uvw[0]*uvw[0] and 0 < s*uvw[1] < uvw[1]*uvw[1] and 0 < s*uvw[2] < uvw[2]*uvw[2]
+
+
 def calculate_transmissions(p1, p2, building):
     transmission_num = 0
     for wall in building.all_walls:
@@ -183,12 +289,15 @@ def calculate_transmissions(p1, p2, building):
 
 def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx, building):
     paths = []
-    ray_distance_threshold = 25
-    transmissions_threshold = 4
+    ray_distance_threshold = 100
+    transmissions_threshold = 100
+    is_transmissions_considered = True  # not is_pos_in_same_room_with_AP(Tx, building)
 
     if reflection_number == 0:
         traversed_distance = calculate_traversed_distance(Tx, Rx)
-        transmission_num = calculate_transmissions(Rx, Tx, building)
+        transmission_num = 0
+        if is_transmissions_considered:
+            transmission_num = calculate_transmissions(Rx, Tx, building)
         # if traversed distance is too long or too many wall transmissions - skip this path
         if traversed_distance > ray_distance_threshold or transmission_num > transmissions_threshold:
             return paths
@@ -211,10 +320,11 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
             wall = image_point.assigned_wall
             intersection_point = get_intersection_point(Tx, image_point, wall)
             if intersection_point != -1:
-                transmission_num += calculate_transmissions(Tx, intersection_point, building)
-                # if too many wall transmissions - skip this path
-                if transmission_num > transmissions_threshold:
-                    continue
+                if is_transmissions_considered:
+                    transmission_num += calculate_transmissions(Tx, intersection_point, building)
+                    # if too many wall transmissions - skip this path
+                    if transmission_num > transmissions_threshold:
+                        continue
                 path.append(intersection_point)
             else:
                 path.clear()
@@ -227,10 +337,11 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
                 wall = image_point.assigned_wall
                 intersection_point = get_intersection_point(path[-1], image_point, wall)
                 if intersection_point != -1:
-                    transmission_num += calculate_transmissions(path[-1], intersection_point, building)
-                    # if too many wall transmissions - skip this path
-                    if transmission_num > transmissions_threshold:
-                        continue
+                    if is_transmissions_considered:
+                        transmission_num += calculate_transmissions(path[-1], intersection_point, building)
+                        # if too many wall transmissions - skip this path
+                        if transmission_num > transmissions_threshold:
+                            continue
                     is_correct = True
                     path.append(intersection_point)
                 else:
@@ -238,10 +349,11 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
                     is_correct = False
                     break
             if is_correct:
-                transmission_num += calculate_transmissions(path[-1], Rx, building)
-                # if too many wall transmissions - skip this path
-                if transmission_num > transmissions_threshold:
-                    continue
+                if is_transmissions_considered:
+                    transmission_num += calculate_transmissions(path[-1], Rx, building)
+                    # if too many wall transmissions - skip this path
+                    if transmission_num > transmissions_threshold:
+                        continue
                 path.append(Rx)
                 path.reverse()
                 path.append(transmission_num)# path[-2] contains traversed distance, path[-1] - number of tramsmissions during path
@@ -325,23 +437,6 @@ def build_image_tree_layer(Tx, walls):
     return layer_points
 
 
-'''
-def build_image_tree2(Tx, walls):
-    image_tree = Tree(Tx)
-    first_layer = build_image_tree_layer(Tx, walls)  # first layer
-    image_tree.add_children(first_layer, 0)
-
-    for i in image_tree.get_children_indices(0):
-        second_layer = build_image_tree_layer(image_tree.tree[i].data, walls)  # second layer
-        image_tree.add_children(second_layer, i)
-        for j in image_tree.get_children_indices(i):
-            third_layer = build_image_tree_layer(image_tree.tree[j].data, walls)  # third layer
-            image_tree.add_children(third_layer, j)
-
-    return image_tree
-'''
-
-
 def build_image_tree(Tx, walls):
     image_tree = Tree(Tx)
     tree_position = 0
@@ -361,75 +456,49 @@ def calculate_traversed_distance(a, b):
 # from ARIADNE
 def get_signal_strength(image_tree, Tx, Rx, building):
     if Tx.is_equal(Rx):
-        return -1
+        return 0
     paths = get_all_paths(image_tree, Tx, Rx, building)
-
-    # TODO remove
-    if Tx.x == 11 and Tx.y == 3 and Tx.z == 1:
-        one = 0
-        two = 0
-        three = 0
-        for path in paths:
-            print()
-            for p in path:
-                print(p)
-            if len(path) == 3:
-                one += 1
-            if len(path) == 4:
-                two += 1
-            if len(path) == 5:
-                three += 1
-
-        print(one, two, three)
-
-        print(len(paths))
-        print(len(paths))
-    #
 
     # calculate signal strength for each path, then sum
     signal_strength = 0
 
     for path in paths:
         num_of_reflections = len(path) - 4  # len(path) minus start point, end point, path length stored in path[-2] and number of transmissions stored n path[-1]
-        num_of_transmissions = path[-1]  # TODO
+        num_of_transmissions = path[-1]
         traversed_distance = path[-2]
-        if traversed_distance == 0:  # if AP
-            return -1
-        signal_strength += (P0 - 10 * math.log10(traversed_distance) -
+        #if traversed_distance == 0:  # if AP TODO
+        #   return 0
+        signal_strength += (P0 - 10 * n * math.log10(traversed_distance) -
                             reflection_coef * num_of_reflections -
                             transmission_coef * num_of_transmissions)
     signal_strength /= len(paths)
 
-    return round(signal_strength, 3)
+    return int(round(signal_strength))
 
 
 def calculate_signal_strength_matrix(building, signal_strength_matrix):
     image_tree = build_image_tree(building.AP, building.all_walls)
 
     for room in building.rooms:
-        for x in range(room.walls[0].p1.x, room.walls[0].p2.x):
-            for y in range(room.walls[3].p2.y, room.walls[3].p1.y):
-                for z in range(room.walls[0].p1.z, room.walls[0].p4.z):
+        for x in range(room.walls[0].p1.x + 1, room.walls[0].p2.x):
+            for y in range(room.walls[3].p2.y + 1, room.walls[3].p1.y):
+                for z in range(room.walls[0].p1.z + 1, room.walls[0].p4.z):
                     signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP, building)
 
 #######################################################################################################################
 
-building = Building()
+building = Building503()
 signal_strength_matrix = np.zeros((building._3D_measures[0], building._3D_measures[1], building._3D_measures[2]))
-
+signal_strength_matrix = signal_strength_matrix.astype(np.int32)
 
 t = timeit.default_timer()
 calculate_signal_strength_matrix(building, signal_strength_matrix)
 print("time")
 print(timeit.default_timer()-t)
+print()
 
-for x in range(0, building._3D_measures[1]):
-    for y in range(0, building._3D_measures[0]):
-        print(signal_strength_matrix[y][x][3], end=" ")
-    print()
-print('///')
-print(signal_strength_matrix[10][15])
-for y in range(building._3D_measures[1], 0):
+
+for y in range(building._3D_measures[1]-1, -1, -1):
     for x in range(0, building._3D_measures[0]):
-        print(signal_strength_matrix[x][y][3], end=" ")
+        print("%3d" % signal_strength_matrix[x][y][1], end = ' ')
     print()
