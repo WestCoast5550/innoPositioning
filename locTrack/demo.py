@@ -133,35 +133,25 @@ def path_estimation_viterbi(RSSI, pos, v):
         curr_step_backward = np.zeros((n, m, 2)) #np.ndarray(shape = (n,m,2))
         rssi_prob = cond_prob(rssi, mu, sigma)
         #### connect motion matrices
-        motion_prob = np.zeros((n, m))
-        acceleration = np.zeros((n, m))
+        #motion_prob = np.zeros((n, m))
+        #acceleration = np.zeros((n, m))
         for i in range(0, n):
             for j in range(0, m):
                 m_p, a = motion_map_bayes(np.array([i, j]), n, m, prev_step[1][i][j], mu_a, sigma_a, K)
-                motion_prob = motion_prob + m_p
-                acceleration = acceleration + a
-        motion_prob = motion_prob / (n*m)
-        acceleration = acceleration / (n*m)
-        ####
-        step_prob = np.multiply(rssi_prob, motion_prob)
-        for i in range(0, n):
-            for j in range(0, m):
-                trans_prob = np.multiply(np.full((n, m), step_prob[i][j]), prev_step[0])
-                max_prob = trans_prob.max()
-                best_samples = np.where(trans_prob == max_prob)
-                x = best_samples[0][0]
-                y = best_samples[1][0]
-                curr_step[0][i][j] = max_prob
-                a = acceleration[x][y]
-                curr_step[1][i][j] = prev_step[1][x][y] + a*dt
-                #put backward pointer
-                curr_step_backward[i][j][0] = x
-                curr_step_backward[i][j][1] = y
+                res = np.nonzero(m_p)
+                for k in range(0, len(res[0])):
+                    x = res[0][k]
+                    y = res[1][k]
+                    trans_prob = m_p[x][y] * prev_step[0][i][j]
+                    if (curr_step[0][x][y] < trans_prob):
+                        curr_step[0][x][y] = trans_prob
+                        curr_step_backward[x][y][0] = i
+                        curr_step_backward[x][y][1] = j
+                        acc = a[x][y]
+                        curr_step[1][x][y] = prev_step[1][i][j] + acc * dt
 
         step.append(curr_step)
         backward.append(curr_step_backward)
-
-        #print(curr_step[0])
         print(count)
         count += 1
 
@@ -189,7 +179,7 @@ def path_generation(length):
     v = 0
 
     for i in range(1, length):
-        a = np.random.normal(1, 1)
+        a = np.random.normal(0, 1)
         x = int(round(path[-1][0] + v * dt + a*dt*dt / 2, 0))
         y = int(round(path[-1][1] + v * dt + a*dt*dt / 2, 0))
         v = v + a * dt
