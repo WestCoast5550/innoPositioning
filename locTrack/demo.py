@@ -106,14 +106,15 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
     # print("x y:" + str(x) + " " + str(y))
     samples = sample_generation_vectors(mu_a, sigma_a, K)
     motion_prob_map = np.zeros((n, m))
-    acc_map = np.ndarray(shape = (n, m, 2))
+    acc_map = np.ndarray(shape = (n, m, 2)) #n*m*2 = (n,m) * (a_x, a_y)
     for i in range(0, len(samples[0][0])):
         a = samples[0][i]
         p_a = samples[1][i]
         pos_t = np.around(pos + v * dt + a*dt*dt / 2)
         if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
             motion_prob_map[pos_t[0]][pos_t[1]] = p_a
-            acc_map[pos_t[0]][pos_t[1]] = a
+            acc_map[pos_t[0]][pos_t[1]][0] = a[0]
+            acc_map[pos_t[0]][pos_t[1]][0] = a[1]
 
     return motion_prob_map, acc_map
 
@@ -121,7 +122,7 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
 def path_estimation_viterbi(RSSI, pos, v):
     path_est = []
     step = []
-    #step.append(np.ndarray(shape = (2,n,m))) #2*n*m : (0 = p, 1 = v, (x,y)))
+    #step.append(np.ndarray(shape = (2,n,m))) #2*n*m : (0 = p, 1,2 = (v_x, v_y), (x,y)))
     step.append(np.zeros((2, n, m)))
     step[0][0][n/2][m/2] = 1
     backward = [] #n*m*2: ((x, y), backward = (_x, _y))
@@ -133,8 +134,6 @@ def path_estimation_viterbi(RSSI, pos, v):
         curr_step_backward = np.zeros((n, m, 2)) #np.ndarray(shape = (n,m,2))
         rssi_prob = cond_prob(rssi, mu, sigma)
         #### connect motion matrices
-        #motion_prob = np.zeros((n, m))
-        #acceleration = np.zeros((n, m))
         for i in range(0, n):
             for j in range(0, m):
                 m_p, a = motion_map_bayes(np.array([i, j]), n, m, prev_step[1][i][j], mu_a, sigma_a, K)
@@ -142,7 +141,7 @@ def path_estimation_viterbi(RSSI, pos, v):
                 for k in range(0, len(res[0])):
                     x = res[0][k]
                     y = res[1][k]
-                    trans_prob = m_p[x][y] * prev_step[0][i][j]
+                    trans_prob = m_p[x][y] * prev_step[0][i][j] * rssi_prob[x][y]
                     if (curr_step[0][x][y] < trans_prob):
                         curr_step[0][x][y] = trans_prob
                         curr_step_backward[x][y][0] = i
