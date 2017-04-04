@@ -106,7 +106,7 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
     # print("x y:" + str(x) + " " + str(y))
     samples = sample_generation_vectors(mu_a, sigma_a, K)
     motion_prob_map = np.zeros((n, m))
-    acc_map = np.ndarray(shape = (n, m, 2)) #n*m*2 = (n,m) * (a_x, a_y)
+    acc_map = np.zeros((n, m, 2)) #n*m*2 = (n,m) * (a_x, a_y)
     for i in range(0, len(samples[0][0])):
         a = samples[0][i]
         p_a = samples[1][i]
@@ -114,7 +114,24 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
         if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
             motion_prob_map[pos_t[0]][pos_t[1]] = p_a
             acc_map[pos_t[0]][pos_t[1]][0] = a[0]
-            acc_map[pos_t[0]][pos_t[1]][0] = a[1]
+            acc_map[pos_t[0]][pos_t[1]][1] = a[1]
+
+    return motion_prob_map, acc_map
+
+def motion_map_viterbi_2(pos, n, m, v, sigma_a):
+    distribution = stats.multivariate_normal(mean=pos + v*dt, cov=[[sigma_a*dt*dt/2,0],[0,sigma_a*dt*dt/2]])
+    motion_prob_map = np.zeros((n, m))
+    acc_map = np.zeros((n, m, 2))
+    sum = 0
+    for i in range(max(pos[0] - 3*sigma_a, 0), min(pos[0] + 3*sigma_a, n)):
+        for j in range(max(pos[1] - 3*sigma_a, 0), min(pos[1] + 3*sigma_a, m)):
+            motion_prob_map[i][j] = distribution.pdf([i, j])
+            sum += motion_prob_map[i][j]
+            a = 2*(np.array([i , j]) - pos - v*dt) / 2
+            acc_map[i][j][0] = a[0]
+            acc_map[i][j][1] = a[1]
+
+    motion_prob_map = motion_prob_map / sum
 
     return motion_prob_map, acc_map
 
@@ -122,32 +139,34 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
 def path_estimation_viterbi(RSSI, pos, v):
     path_est = []
     step = []
-    #step.append(np.ndarray(shape = (2,n,m))) #2*n*m : (0 = p, 1,2 = (v_x, v_y), (x,y)))
-    step.append(np.zeros((2, n, m)))
+    #step.append(np.ndarray(shape = (3,n,m))) #2*n*m : (0 = p, 1,2 = (v_x, v_y), (x,y)))
+    step.append(np.zeros((3, n, m)))
     step[0][0][n/2][m/2] = 1
     backward = [] #n*m*2: ((x, y), backward = (_x, _y))
     #forward step
     count = 0
     for rssi in RSSI[1:]:
         prev_step = step[-1]
-        curr_step = np.zeros((2, n, m)) #np.ndarray(shape = (2,n,m))
+        curr_step = np.zeros((3, n, m)) #np.ndarray(shape = (3,n,m))
         curr_step_backward = np.zeros((n, m, 2)) #np.ndarray(shape = (n,m,2))
         rssi_prob = cond_prob(rssi, mu, sigma)
         #### connect motion matrices
         for i in range(0, n):
             for j in range(0, m):
-                m_p, a = motion_map_bayes(np.array([i, j]), n, m, prev_step[1][i][j], mu_a, sigma_a, K)
+                #m_p, a = motion_map_viterbi(np.array([i, j]), n, m, np.array([prev_step[1][i][j], prev_step[2][i][j]]), mu_a, sigma_a, K)
+                m_p, a = motion_map_viterbi_2(np.array([i, j]), n, m, np.array([prev_step[1][i][j], prev_step[2][i][j]]), sigma_a)
                 res = np.nonzero(m_p)
                 for k in range(0, len(res[0])):
                     x = res[0][k]
                     y = res[1][k]
                     trans_prob = m_p[x][y] * prev_step[0][i][j] * rssi_prob[x][y]
-                    if (curr_step[0][x][y] < trans_prob):
+                    if curr_step[0][x][y] < trans_prob:
                         curr_step[0][x][y] = trans_prob
                         curr_step_backward[x][y][0] = i
                         curr_step_backward[x][y][1] = j
                         acc = a[x][y]
-                        curr_step[1][x][y] = prev_step[1][i][j] + acc * dt
+                        curr_step[1][x][y] = prev_step[1][i][j] + acc[0] * dt
+                        curr_step[2][x][y] = prev_step[2][i][j] + acc[1] * dt
 
         step.append(curr_step)
         backward.append(curr_step_backward)
@@ -171,7 +190,7 @@ def path_estimation_viterbi(RSSI, pos, v):
 
 #################################################################
 
-def path_generation(length):
+def path_generation_bayes(length):
     path = [(n/2, m/2)]
     rssi = []
     rssi.append(np.random.normal(mu[0][0], sigma[0][0], 1))
@@ -188,6 +207,25 @@ def path_generation(length):
 
     return rssi, path
 
+def path_generation(length):
+    path = [(n/2, m/2)]
+    rssi = []
+    rssi.append(np.random.normal(mu[0][0], sigma[0][0], 1))
+    v_x = 0
+    v_y = 0
+
+    for i in range(1, length):
+        a_x = np.random.normal(0, 1)
+        a_y = np.random.normal(0, 1)
+        x = int(round(path[-1][0] + v_x * dt + a_x*dt*dt / 2, 0))
+        y = int(round(path[-1][1] + v_y * dt + a_y*dt*dt / 2, 0))
+        v_x = v_x + a_x * dt
+        v_y = v_y + a_y * dt
+        # print(str(dx) + " " + str(dy))
+        path.append((x, y))
+        rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+
+    return rssi, path
 
 def error(path, path_est):
     error = 0
@@ -198,7 +236,7 @@ def error(path, path_est):
     print("Error : " + str(error))
 
 
-RSSI, path = path_generation(5)
+RSSI, path = path_generation_bayes(6)
 print("Test path:")
 print(path)
 
