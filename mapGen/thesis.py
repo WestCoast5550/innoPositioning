@@ -17,6 +17,7 @@ reflection_coef = -12.11  # dBm
 transmission_coef = -0.4937  # dBm
 n = 3.0  # attenuation exponent (dBm)
 
+cell_size = 0.5  # in meters
 
 # reflection_coef = 0.25
 # transmission_coef = 0.5
@@ -199,8 +200,8 @@ class Building455:
         return ''
 
 
-class Building503:
-    AP = Point(4, 7, 0)  # AP = Point(4, 7, 1)
+class Building503_1m:
+    AP = Point(4, 7, 1)
     number_of_rooms = 2
     _3D_measures = [15, 11, 6]
 
@@ -239,33 +240,33 @@ class Building503:
         return ''
 
 
-class Building503_v2:
-    AP = Point(8, 14, 0)  # AP = Point(4, 7, 1)
+class Building503_05m:
+    AP = Point(9, 16, 1)
     number_of_rooms = 2
-    _3D_measures = [30, 22, 12]
+    _3D_measures = [27, 20, 10]
 
     def __init__(self):
         self.rooms = []
         self.rooms.append(Room(12, 18, 8,
                                # walls
                                Wall(Point(0, 0, 0), Point(14, 0, 0), Point(14, 0, 10), Point(0, 0, 10), 1),
-                               Wall(Point(14, 0, 0), Point(14, 20, 0), Point(14, 20, 10), Point(14, 0, 10), 2),
-                               Wall(Point(14, 20, 0), Point(0, 20, 0), Point(0, 20, 10), Point(14, 20, 10), 3),
-                               Wall(Point(0, 20, 0), Point(0, 0, 0), Point(0, 0, 10), Point(0, 20, 10), 4),
+                               Wall(Point(14, 0, 0), Point(14, 19, 0), Point(14, 19, 10), Point(14, 0, 10), 2),
+                               Wall(Point(14, 19, 0), Point(0, 19, 0), Point(0, 19, 10), Point(14, 19, 10), 3),
+                               Wall(Point(0, 19, 0), Point(0, 0, 0), Point(0, 0, 10), Point(0, 19, 10), 4),
                                # ceil
-                               Wall(Point(0, 0, 10), Point(14, 0, 10), Point(14, 20, 10), Point(0, 20, 10), 5),
+                               Wall(Point(0, 0, 10), Point(14, 0, 10), Point(14, 19, 10), Point(0, 19, 10), 5),
                                # floor
-                               Wall(Point(0, 0, 0), Point(14, 0, 0), Point(14, 20, 0), Point(0, 20, 0), 6)))
+                               Wall(Point(0, 0, 0), Point(14, 0, 0), Point(14, 19, 0), Point(0, 19, 0), 6)))
         self.rooms.append(Room(12, 18, 8,
                                # walls
-                               Wall(Point(14, 0, 0), Point(28, 0, 0), Point(20, 0, 10), Point(14, 0, 10), 7),
-                               Wall(Point(28, 0, 0), Point(28, 20, 0), Point(28, 20, 10), Point(28, 0, 10), 8),
-                               Wall(Point(28, 20, 0), Point(14, 20, 0), Point(14, 20, 10), Point(28, 20, 10), 9),
-                               Wall(Point(14, 20, 0), Point(14, 0, 0), Point(14, 0, 10), Point(14, 20, 10), 10),
+                               Wall(Point(14, 0, 0), Point(26, 0, 0), Point(19, 0, 10), Point(14, 0, 10), 7),
+                               Wall(Point(26, 0, 0), Point(26, 19, 0), Point(26, 19, 10), Point(26, 0, 10), 8),
+                               Wall(Point(26, 19, 0), Point(14, 19, 0), Point(14, 19, 10), Point(26, 19, 10), 9),
+                               Wall(Point(14, 19, 0), Point(14, 0, 0), Point(14, 0, 10), Point(14, 19, 10), 10),
                                # ceil
-                               Wall(Point(14, 0, 10), Point(28, 0, 10), Point(28, 20, 10), Point(14, 20, 10), 11),
+                               Wall(Point(14, 0, 10), Point(26, 0, 10), Point(26, 19, 10), Point(14, 19, 10), 11),
                                # floor
-                               Wall(Point(14, 0, 0), Point(28, 0, 0), Point(28, 20, 0), Point(14, 20, 0), 12)))
+                               Wall(Point(14, 0, 0), Point(26, 0, 0), Point(26, 19, 0), Point(14, 19, 0), 12)))
         all_walls = []
         for room in self.rooms:
             all_walls.append(room.walls)
@@ -336,7 +337,7 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
     is_transmissions_considered = True  # not is_pos_in_same_room_with_AP(Tx, building)
 
     if reflection_number == 0:
-        traversed_distance = calculate_traversed_distance(Tx, Rx)
+        traversed_distance = calculate_traversed_distance(Tx, Rx) * cell_size
         transmission_num = 0
         if is_transmissions_considered:
             transmission_num = calculate_transmissions(Rx, Tx, building)
@@ -350,7 +351,7 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
             transmission_num = 0
             image_point = image_tree.tree[i].data
 
-            traversed_distance = calculate_traversed_distance(Tx, image_point)
+            traversed_distance = calculate_traversed_distance(Tx, image_point) * cell_size
             # if traversed distance is too long - skip this path
             if traversed_distance > ray_distance_threshold:
                 continue
@@ -526,8 +527,8 @@ def calculate_signal_strength_matrix(building, signal_strength_matrix):
                     signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP, building)
 
 
-def serialize(data):
-    with open('data.pickle', 'wb') as f:
+def serialize(data, filename):
+    with open(filename, 'wb') as f:
         pickle.dump(data, f)
 
 
@@ -536,7 +537,7 @@ def deserialize():
         return pickle.load(f)
 #######################################################################################################################
 
-building = Building503_v2()
+building = Building503_05m()
 signal_strength_matrix = np.zeros((building._3D_measures[0], building._3D_measures[1], building._3D_measures[2]))
 signal_strength_matrix = signal_strength_matrix.astype(np.int32)
 
@@ -547,6 +548,7 @@ for y in range(building._3D_measures[1]-1, -1, -1):
 '''
 
 
+
 t = timeit.default_timer()
 calculate_signal_strength_matrix(building, signal_strength_matrix)
 print("time")
@@ -554,7 +556,7 @@ print(timeit.default_timer()-t)
 print()
 
 ### !! serialization
-serialize(signal_strength_matrix)
+#serialize(signal_strength_matrix, 'signal_strength_matrix_503_05')
 
 ### !! deserialization
 #signal_strength_matrix_s = deserialize()
@@ -567,4 +569,4 @@ for y in range(building._3D_measures[1]-1, -1, -1):
 data = [
     go.Heatmap(z=signal_strength_matrix[:, :, 1].transpose())
 ]
-plotly.offline.plot(data, filename='basic-heatmap2.html')
+plotly.offline.plot(data, filename='basic-heatmap3.html')
