@@ -1,15 +1,33 @@
 import numpy as np
 import math
+import pickle
 from scipy import stats
+from mapget import *
+import plotly
+import plotly.plotly as py
+import plotly.graph_objs as go
 
+building = Building503()
+with open('data.pickle', 'rb') as f:
+    signal_strength_matrix = pickle.load(f)
+
+for y in range(building._3D_measures[1]-1, -1, -1):
+    for x in range(0, building._3D_measures[0]):
+        print("%3d" % signal_strength_matrix[x][y][1], end = ' ')
+    print("\n")
+
+#for wall in building.all_walls:
+#    print(wall)
 
 #####################Map params###############################
 # room size
-n = 30
-m = 30
+#n = 30
+#m = 30
+n = building._3D_measures[0]
+m = building._3D_measures[1]
 
 # define params of signal propagation distribution
-
+'''
 mu = np.zeros((n, m))  # mean
 alpha = 3
 d0 = 4
@@ -17,14 +35,17 @@ p_d0 = -53
 
 x = np.ones((m, 1), int) * range(n)
 y = np.transpose(np.ones((n, 1), int) * range(m))
-d = np.sqrt((x - 49) ** 2 + (y - 49) ** 2) + 4
+d = np.sqrt((x - 0) ** 2 + (y - 0) ** 2) + 4
 mu = p_d0 - 10 * alpha * np.log10(d / d0)
-
-sigma = np.ones((n, m))  # variance
+'''
+mu = signal_strength_matrix[:,:,1]
+# variance
+#sigma = np.ones((n, m))
+sigma = np.full((n, m), 0.25)
 ###############################################################
 
 # start point
-pos = np.array([n/2, n/2])
+pos = np.array([4, 4])
 
 # start velocity
 v = np.array([0, 0])
@@ -50,6 +71,38 @@ def sample_generation(mu_a, sigma_a, K):
     p_a = stats.norm(mu_a, sigma_a).pdf(a)
     return [a, p_a]
 
+###############Lines intersection###############################
+class pt:
+    x = 0
+    y = 0
+
+    def __init__(self, x_, y_):
+        self.x = x_
+        self.y = y_
+
+def area(a, b, c):
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+
+
+def intersect_1(a, b, c, d):
+    if (a > b):
+        a, b = b, a # swap (a, b)
+    if (c > d):
+        c, d = d, c # swap (c, d)
+    return max(a, c) <= min(b, d)
+
+def intersect (a, b, c, d):
+	return intersect_1 (a.x, b.x, c.x, d.x) and intersect_1 (a.y, b.y, c.y, d.y) and area(a,b,c) * area(a,b,d) <= 0 and area(c,d,a) * area(c,d,b) <= 0
+
+def intersect_with_wall(a, b, building):
+    for wall in building.all_walls:
+        c = pt(wall.p1.x, wall.p1.y)
+        d = pt(wall.p2.x, wall.p2.y)
+        if intersect(a, b, c, d):
+            return True
+    return False
+###############################################################
+
 ###############Bayes solution##################################
 def motion_map_bayes(pos, n, m, v, mu_a, sigma_a, K):
     # print("x y:" + str(x) + " " + str(y))
@@ -60,7 +113,8 @@ def motion_map_bayes(pos, n, m, v, mu_a, sigma_a, K):
         a = samples[0][i]
         p_a = samples[1][i]
         pos_t = np.around(pos + v * dt + a*dt*dt / 2)
-        if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+        #if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+        if not intersect_with_wall(pt(pos[0], pos[1]), pt(pos_t[0], pos_t[1]), building):
             motion_prob_map[pos_t[0]][pos_t[1]] = p_a
             acc_map[pos_t[0]][pos_t[1]] = a
 
@@ -69,7 +123,7 @@ def motion_map_bayes(pos, n, m, v, mu_a, sigma_a, K):
 
 def path_estimation_bayes(RSSI, pos, v):
     path_est = []
-    path_est.append((n/2, n/2))
+    path_est.append((pos[0], pos[1]))
     # print(str(0) + " " + str(0))
     for rssi in RSSI[1:]:
         # print("Velocity: " + str(v))
@@ -111,7 +165,8 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
         a = samples[0][i]
         p_a = samples[1][i]
         pos_t = np.around(pos + v * dt + a*dt*dt / 2)
-        if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+        #if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+        if not intersect_with_wall(pt(pos[0], pos[1]), pt(pos_t[0], pos_t[1]), building):
             motion_prob_map[pos_t[0]][pos_t[1]] = p_a
             acc_map[pos_t[0]][pos_t[1]][0] = a[0]
             acc_map[pos_t[0]][pos_t[1]][1] = a[1]
@@ -123,13 +178,14 @@ def motion_map_viterbi_2(pos, n, m, v, sigma_a):
     motion_prob_map = np.zeros((n, m))
     acc_map = np.zeros((n, m, 2))
     sum = 0
-    for i in range(max(pos[0] - 3*sigma_a, 0), min(pos[0] + 3*sigma_a, n)):
-        for j in range(max(pos[1] - 3*sigma_a, 0), min(pos[1] + 3*sigma_a, m)):
-            motion_prob_map[i][j] = distribution.pdf([i, j])
-            sum += motion_prob_map[i][j]
-            a = 2*(np.array([i , j]) - pos - v*dt) / 2
-            acc_map[i][j][0] = a[0]
-            acc_map[i][j][1] = a[1]
+    for i in range(max(pos[0] - 5*sigma_a, 0), min(pos[0] + 5*sigma_a, n)):
+        for j in range(max(pos[1] - 5*sigma_a, 0), min(pos[1] + 5*sigma_a, m)):
+            if not intersect_with_wall(pt(pos[0], pos[1]), pt(i, j), building):
+                motion_prob_map[i][j] = distribution.pdf([i, j])
+                sum += motion_prob_map[i][j]
+                a = 2*(np.array([i , j]) - pos - v*dt) / 2
+                acc_map[i][j][0] = a[0]
+                acc_map[i][j][1] = a[1]
 
     motion_prob_map = motion_prob_map / sum
 
@@ -141,7 +197,7 @@ def path_estimation_viterbi(RSSI, pos, v):
     step = []
     #step.append(np.ndarray(shape = (3,n,m))) #2*n*m : (0 = p, 1,2 = (v_x, v_y), (x,y)))
     step.append(np.zeros((3, n, m)))
-    step[0][0][n/2][m/2] = 1
+    step[0][0][pos[0]][pos[1]] = 1
     backward = [] #n*m*2: ((x, y), backward = (_x, _y))
     #forward step
     count = 0
@@ -208,20 +264,27 @@ def path_generation_bayes(length):
     return rssi, path
 
 def path_generation(length):
-    path = [(n/2, m/2)]
+    path = [(pos[0], pos[1])]
     rssi = []
     rssi.append(np.random.normal(mu[0][0], sigma[0][0], 1))
     v_x = 0
     v_y = 0
 
     for i in range(1, length):
-        a_x = np.random.normal(0, 1)
-        a_y = np.random.normal(0, 1)
-        x = int(round(path[-1][0] + v_x * dt + a_x*dt*dt / 2, 0))
-        y = int(round(path[-1][1] + v_y * dt + a_y*dt*dt / 2, 0))
+        x = path[-1][0]
+        y = path[-1][1]
+        a_x = 0
+        a_y = 0
+        while True:
+            a_x = np.random.normal(0, 1)
+            a_y = np.random.normal(0, 1)
+            x = int(round(path[-1][0] + v_x * dt + a_x*dt*dt / 2, 0))
+            y = int(round(path[-1][1] + v_y * dt + a_y*dt*dt / 2, 0))
+            if not intersect_with_wall(pt(path[-1][0], path[-1][1]), pt(x, y), building):
+                break
         v_x = v_x + a_x * dt
         v_y = v_y + a_y * dt
-        # print(str(dx) + " " + str(dy))
+        print(str(x) + " " + str(y))
         path.append((x, y))
         rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
 
@@ -236,7 +299,7 @@ def error(path, path_est):
     print("Error : " + str(error))
 
 
-RSSI, path = path_generation_bayes(6)
+RSSI, path = path_generation(10)
 print("Test path:")
 print(path)
 
@@ -246,5 +309,21 @@ print(path_est)
 
 error(path, path_est)
 
+mu[mu == 0] = -55
+trace = go.Heatmap(z=mu.transpose())
+x = []
+y = []
+for el in path:
+    x.append(el[0])
+    y.append(el[1])
+trace1 = go.Scatter(name = 'real path', x = x, y = y)
+x = []
+y = []
+for el in path_est:
+    x.append(el[0])
+    y.append(el[1])
+trace2 = go.Scatter(name = 'estimated path', x = x, y = y)
+data=[trace, trace1, trace2]
+plotly.offline.plot(data, filename='labelled-heatmap.html')
 
 
