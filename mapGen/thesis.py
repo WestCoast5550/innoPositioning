@@ -4,13 +4,15 @@ import timeit
 
 import math
 import itertools
-import pylab as p
 import numpy as np
 
-# import mahotas
+import plotly
+import plotly.graph_objs as go
+
+import pickle
 
 EPS = 1E-9
-P0 = -50  # dBm
+P0 = -35  # dBm
 reflection_coef = -12.11  # dBm
 transmission_coef = -0.4937  # dBm
 n = 3.0  # attenuation exponent (dBm)
@@ -198,7 +200,7 @@ class Building455:
 
 
 class Building503:
-    AP = Point(6, 12, 1)
+    AP = Point(4, 7, 0)  # AP = Point(4, 7, 1)
     number_of_rooms = 2
     _3D_measures = [15, 11, 6]
 
@@ -224,6 +226,46 @@ class Building503:
                                Wall(Point(7, 0, 5), Point(14, 0, 5), Point(14, 10, 5), Point(7, 10, 5), 11),
                                # floor
                                Wall(Point(7, 0, 0), Point(14, 0, 0), Point(14, 10, 0), Point(7, 10, 0), 12)))
+        all_walls = []
+        for room in self.rooms:
+            all_walls.append(room.walls)
+        self.all_walls = list(itertools.chain.from_iterable(all_walls))
+
+        self.AP.assigned_room = self.rooms[0]
+
+    def __str__(self):
+        for room in self.rooms:
+            print(room)
+        return ''
+
+
+class Building503_v2:
+    AP = Point(8, 14, 0)  # AP = Point(4, 7, 1)
+    number_of_rooms = 2
+    _3D_measures = [30, 22, 12]
+
+    def __init__(self):
+        self.rooms = []
+        self.rooms.append(Room(12, 18, 8,
+                               # walls
+                               Wall(Point(0, 0, 0), Point(14, 0, 0), Point(14, 0, 10), Point(0, 0, 10), 1),
+                               Wall(Point(14, 0, 0), Point(14, 20, 0), Point(14, 20, 10), Point(14, 0, 10), 2),
+                               Wall(Point(14, 20, 0), Point(0, 20, 0), Point(0, 20, 10), Point(14, 20, 10), 3),
+                               Wall(Point(0, 20, 0), Point(0, 0, 0), Point(0, 0, 10), Point(0, 20, 10), 4),
+                               # ceil
+                               Wall(Point(0, 0, 10), Point(14, 0, 10), Point(14, 20, 10), Point(0, 20, 10), 5),
+                               # floor
+                               Wall(Point(0, 0, 0), Point(14, 0, 0), Point(14, 20, 0), Point(0, 20, 0), 6)))
+        self.rooms.append(Room(12, 18, 8,
+                               # walls
+                               Wall(Point(14, 0, 0), Point(28, 0, 0), Point(20, 0, 10), Point(14, 0, 10), 7),
+                               Wall(Point(28, 0, 0), Point(28, 20, 0), Point(28, 20, 10), Point(28, 0, 10), 8),
+                               Wall(Point(28, 20, 0), Point(14, 20, 0), Point(14, 20, 10), Point(28, 20, 10), 9),
+                               Wall(Point(14, 20, 0), Point(14, 0, 0), Point(14, 0, 10), Point(14, 20, 10), 10),
+                               # ceil
+                               Wall(Point(14, 0, 10), Point(28, 0, 10), Point(28, 20, 10), Point(14, 20, 10), 11),
+                               # floor
+                               Wall(Point(14, 0, 0), Point(28, 0, 0), Point(28, 20, 0), Point(14, 20, 0), 12)))
         all_walls = []
         for room in self.rooms:
             all_walls.append(room.walls)
@@ -466,8 +508,6 @@ def get_signal_strength(image_tree, Tx, Rx, building):
         num_of_reflections = len(path) - 4  # len(path) minus start point, end point, path length stored in path[-2] and number of transmissions stored n path[-1]
         num_of_transmissions = path[-1]
         traversed_distance = path[-2]
-        #if traversed_distance == 0:  # if AP TODO
-        #   return 0
         signal_strength += (P0 - 10 * n * math.log10(traversed_distance) -
                             reflection_coef * num_of_reflections -
                             transmission_coef * num_of_transmissions)
@@ -485,11 +525,27 @@ def calculate_signal_strength_matrix(building, signal_strength_matrix):
                 for z in range(room.walls[0].p1.z + 1, room.walls[0].p4.z):
                     signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP, building)
 
+
+def serialize(data):
+    with open('data.pickle', 'wb') as f:
+        pickle.dump(data, f)
+
+
+def deserialize():
+    with open('data.pickle', 'rb') as f:
+        return pickle.load(f)
 #######################################################################################################################
 
-building = Building503()
+building = Building503_v2()
 signal_strength_matrix = np.zeros((building._3D_measures[0], building._3D_measures[1], building._3D_measures[2]))
 signal_strength_matrix = signal_strength_matrix.astype(np.int32)
+
+'''
+for y in range(building._3D_measures[1]-1, -1, -1):
+    for x in range(0, building._3D_measures[0]):
+        signal_strength_matrix[x][y][1]=-40
+'''
+
 
 t = timeit.default_timer()
 calculate_signal_strength_matrix(building, signal_strength_matrix)
@@ -497,8 +553,18 @@ print("time")
 print(timeit.default_timer()-t)
 print()
 
+### !! serialization
+serialize(signal_strength_matrix)
+
+### !! deserialization
+#signal_strength_matrix_s = deserialize()
 
 for y in range(building._3D_measures[1]-1, -1, -1):
     for x in range(0, building._3D_measures[0]):
-        print("%3d" % signal_strength_matrix[x][y][1], end = ' ')
+        print("%3d" % signal_strength_matrix[x][y][1], end=' ')
     print()
+
+data = [
+    go.Heatmap(z=signal_strength_matrix[:, :, 1].transpose())
+]
+plotly.offline.plot(data, filename='basic-heatmap2.html')
