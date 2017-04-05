@@ -17,18 +17,18 @@ for y in range(building._3D_measures[1]-1, -1, -1):
         print("%3d" % signal_strength_matrix[x][y][1], end = ' ')
     print("\n")
 '''
-
 #for wall in building.all_walls:
 #    print(wall)
 
 #####################Map params###############################
 # room size
-n = 10
-m = 10
+n = 30
+m = 30
 #n = building._3D_measures[0]
 #m = building._3D_measures[1]
 
 # define params of signal propagation distribution
+
 
 mu = np.zeros((n, m))  # mean
 alpha = 3
@@ -40,19 +40,20 @@ y = np.transpose(np.ones((n, 1), int) * range(m))
 d = np.sqrt((x - 0) ** 2 + (y - 0) ** 2) + 4
 mu = p_d0 - 10 * alpha * np.log10(d / d0)
 
-#mu = signal_strength_matrix[:,:,1]
+'''
+mu = signal_strength_matrix[:,:,1]
 
 ######
-'''
+
 mu[1] = [0, -60, -63, -66, -55, -63, -68, -50, -73, -67, 0]
 mu[2] = [0, -66, -59, -70, -67, -60, -70, -55, -60 ,-78, 0]
 mu[3] = [0, -62, -55, -50, -62, -65, -61, -67, -74, -81, 0]
 mu[4] = [0, -71, -67, -75, -60, -71, -75, -70, -63, -77, 0]
 mu[5] = [0, -70, -77, -64, -74, -66, -63, -81, -55, -90, 0]
 mu[6] = [0, -75, -71, -74, -80, -70, -78, -50, -65, -85, 0]
-'''
-######
 
+######
+'''
 # variance
 #sigma = np.ones((n, m))
 sigma = np.full((n, m), 1)
@@ -62,7 +63,7 @@ sigma = np.full((n, m), 1)
 pos = np.array([2, 2])
 
 # start velocity
-v = np.array([0.5, 0.5])
+v = np.array([0, 0])
 
 # time interval
 dt = 1
@@ -190,7 +191,8 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
 def motion_map_viterbi_2(pos, n, m, v, sigma_a):
     prev = pos
     pos = pos + v*dt
-    distribution = stats.multivariate_normal(mean=pos, cov=[[sigma_a*dt*dt/2,0],[0,sigma_a*dt*dt/2]])
+    distribution = stats.multivariate_normal(mean=pos, cov=[[sigma_a*dt ** 4 / 4,0],[0,sigma_a*dt ** 4 /4]])
+    multi_normal = stats.multivariate_normal(mean=[0, 0], cov=[[1,0],[0,1]])
     motion_prob_map = np.zeros((n, m))
     acc_map = np.zeros((n, m, 2))
     sum = 0
@@ -200,7 +202,7 @@ def motion_map_viterbi_2(pos, n, m, v, sigma_a):
             #if not intersect_with_wall(pt(prev[0], prev[1]), pt(i, j), building):
                 motion_prob_map[i][j] = distribution.pdf([i, j])
                 sum += motion_prob_map[i][j]
-                a = 2*(np.array([i , j]) - pos - v*dt) / 2
+                a = 2*(np.array([i , j]) - pos - v*dt) / dt ** 2
                 acc_map[i][j][0] = a[0]
                 acc_map[i][j][1] = a[1]
 
@@ -226,15 +228,21 @@ def path_estimation_viterbi(RSSI, pos, v):
         #### connect motion matrices
         for i in range(0, n):
             for j in range(0, m):
-                #m_p, a = motion_map_viterbi(np.array([i, j]), n, m, np.array([prev_step[1][i][j], prev_step[2][i][j]]), mu_a, sigma_a, K)
-                m_p, a = motion_map_viterbi_2(np.array([i, j]), n, m, np.array([prev_step[1][i][j], prev_step[2][i][j]]), sigma_a)
-                res = np.nonzero(m_p)
+                m_p, a = motion_map_viterbi(np.array([i, j]), n, m, np.array([prev_step[1][i][j], prev_step[2][i][j]]), mu_a, sigma_a, K)
+                #m_p, a = motion_map_viterbi_2(np.array([i, j]), n, m, np.array([prev_step[1][i][j], prev_step[2][i][j]]), sigma_a)
+                trans_prob = np.multiply(m_p, rssi_prob)
+                temp = np.full((n,m), prev_step[0][i][j])
+                trans_prob = np.multiply(trans_prob, temp)
+                sum = np.sum(trans_prob)
+                if (sum > 0):
+                    trans_prob = trans_prob / sum
+                res = np.nonzero(trans_prob)
                 for k in range(0, len(res[0])):
                     x = res[0][k]
                     y = res[1][k]
-                    trans_prob = m_p[x][y] * prev_step[0][i][j] * rssi_prob[x][y]
-                    if curr_step[0][x][y] < trans_prob:
-                        curr_step[0][x][y] = trans_prob
+                    #trans_prob = m_p[x][y] * prev_step[0][i][j] * rssi_prob[x][y]
+                    if curr_step[0][x][y] < trans_prob[x][y]:
+                        curr_step[0][x][y] = trans_prob[x][y]
                         curr_step_backward[x][y][0] = i
                         curr_step_backward[x][y][1] = j
                         acc = a[x][y]
@@ -383,9 +391,11 @@ def error(path, path_est):
     print("Error : " + str(error))
 
 
-RSSI, path = path_generation(5)
+RSSI, path = path_generation(6)
 print("Test path:")
 print(path)
+print("RSSI:")
+print(RSSI)
 
 path_est = path_estimation_viterbi(RSSI, pos, v)
 print("Path estimation:")
