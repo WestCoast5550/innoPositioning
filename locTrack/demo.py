@@ -7,6 +7,7 @@ import plotly
 import plotly.plotly as py
 import plotly.graph_objs as go
 
+'''
 building = Building503()
 with open('data.pickle', 'rb') as f:
     signal_strength_matrix = pickle.load(f)
@@ -15,19 +16,20 @@ for y in range(building._3D_measures[1]-1, -1, -1):
     for x in range(0, building._3D_measures[0]):
         print("%3d" % signal_strength_matrix[x][y][1], end = ' ')
     print("\n")
+'''
 
 #for wall in building.all_walls:
 #    print(wall)
 
 #####################Map params###############################
 # room size
-#n = 30
-#m = 30
-n = building._3D_measures[0]
-m = building._3D_measures[1]
+n = 10
+m = 10
+#n = building._3D_measures[0]
+#m = building._3D_measures[1]
 
 # define params of signal propagation distribution
-'''
+
 mu = np.zeros((n, m))  # mean
 alpha = 3
 d0 = 4
@@ -37,18 +39,30 @@ x = np.ones((m, 1), int) * range(n)
 y = np.transpose(np.ones((n, 1), int) * range(m))
 d = np.sqrt((x - 0) ** 2 + (y - 0) ** 2) + 4
 mu = p_d0 - 10 * alpha * np.log10(d / d0)
+
+#mu = signal_strength_matrix[:,:,1]
+
+######
 '''
-mu = signal_strength_matrix[:,:,1]
+mu[1] = [0, -60, -63, -66, -55, -63, -68, -50, -73, -67, 0]
+mu[2] = [0, -66, -59, -70, -67, -60, -70, -55, -60 ,-78, 0]
+mu[3] = [0, -62, -55, -50, -62, -65, -61, -67, -74, -81, 0]
+mu[4] = [0, -71, -67, -75, -60, -71, -75, -70, -63, -77, 0]
+mu[5] = [0, -70, -77, -64, -74, -66, -63, -81, -55, -90, 0]
+mu[6] = [0, -75, -71, -74, -80, -70, -78, -50, -65, -85, 0]
+'''
+######
+
 # variance
 #sigma = np.ones((n, m))
-sigma = np.full((n, m), 0.25)
+sigma = np.full((n, m), 1)
 ###############################################################
 
 # start point
-pos = np.array([4, 4])
+pos = np.array([2, 2])
 
 # start velocity
-v = np.array([0, 0])
+v = np.array([0.5, 0.5])
 
 # time interval
 dt = 1
@@ -113,8 +127,8 @@ def motion_map_bayes(pos, n, m, v, mu_a, sigma_a, K):
         a = samples[0][i]
         p_a = samples[1][i]
         pos_t = np.around(pos + v * dt + a*dt*dt / 2)
-        #if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
-        if not intersect_with_wall(pt(pos[0], pos[1]), pt(pos_t[0], pos_t[1]), building):
+        if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+        #if not intersect_with_wall(pt(pos[0], pos[1]), pt(pos_t[0], pos_t[1]), building):
             motion_prob_map[pos_t[0]][pos_t[1]] = p_a
             acc_map[pos_t[0]][pos_t[1]] = a
 
@@ -165,8 +179,8 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
         a = samples[0][i]
         p_a = samples[1][i]
         pos_t = np.around(pos + v * dt + a*dt*dt / 2)
-        #if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
-        if not intersect_with_wall(pt(pos[0], pos[1]), pt(pos_t[0], pos_t[1]), building):
+        if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+        #if not intersect_with_wall(pt(pos[0], pos[1]), pt(pos_t[0], pos_t[1]), building):
             motion_prob_map[pos_t[0]][pos_t[1]] = p_a
             acc_map[pos_t[0]][pos_t[1]][0] = a[0]
             acc_map[pos_t[0]][pos_t[1]][1] = a[1]
@@ -174,13 +188,16 @@ def motion_map_viterbi(pos, n, m, v, mu_a, sigma_a, K):
     return motion_prob_map, acc_map
 
 def motion_map_viterbi_2(pos, n, m, v, sigma_a):
-    distribution = stats.multivariate_normal(mean=pos + v*dt, cov=[[sigma_a*dt*dt/2,0],[0,sigma_a*dt*dt/2]])
+    prev = pos
+    pos = pos + v*dt
+    distribution = stats.multivariate_normal(mean=pos, cov=[[sigma_a*dt*dt/2,0],[0,sigma_a*dt*dt/2]])
     motion_prob_map = np.zeros((n, m))
     acc_map = np.zeros((n, m, 2))
     sum = 0
-    for i in range(max(pos[0] - 5*sigma_a, 0), min(pos[0] + 5*sigma_a, n)):
-        for j in range(max(pos[1] - 5*sigma_a, 0), min(pos[1] + 5*sigma_a, m)):
-            if not intersect_with_wall(pt(pos[0], pos[1]), pt(i, j), building):
+    for i in range(max(int(pos[0]) - 5*sigma_a, 0), min(int(pos[0]) + 5*sigma_a, n)):
+        for j in range(max(int(pos[1]) - 5*sigma_a, 0), min(int(pos[1]) + 5*sigma_a, m)):
+            #if (pos_t < np.array([n , m])).all() & (pos_t >= np.array([0 , 0])).all():
+            #if not intersect_with_wall(pt(prev[0], prev[1]), pt(i, j), building):
                 motion_prob_map[i][j] = distribution.pdf([i, j])
                 sum += motion_prob_map[i][j]
                 a = 2*(np.array([i , j]) - pos - v*dt) / 2
@@ -271,22 +288,89 @@ def path_generation(length):
     v_y = 0
 
     for i in range(1, length):
+        v_x_t = v_x
+        v_y_t = v_y
         x = path[-1][0]
         y = path[-1][1]
         a_x = 0
         a_y = 0
-        while True:
-            a_x = np.random.normal(0, 1)
-            a_y = np.random.normal(0, 1)
-            x = int(round(path[-1][0] + v_x * dt + a_x*dt*dt / 2, 0))
-            y = int(round(path[-1][1] + v_y * dt + a_y*dt*dt / 2, 0))
-            if not intersect_with_wall(pt(path[-1][0], path[-1][1]), pt(x, y), building):
-                break
+        a_x = np.random.normal(0, 1)
+        a_y = np.random.normal(0, 1)
+        a_x_t = a_x
+        a_y_t = a_y
+        x = int(round(path[-1][0] + v_x * dt + a_x*dt*dt / 2, 0))
+        y = int(round(path[-1][1] + v_y * dt + a_y*dt*dt / 2, 0))
+        #if not intersect_with_wall(pt(path[-1][0], path[-1][1]), pt(x, y), building) and x > 0 and x < 7 and y > 0 and y < 10:
+        if x >= 0 and x < n and y >= 0 and y < m:
+            v_x = v_x + a_x * dt
+            v_y = v_y + a_y * dt
+            print(1)
+            print(str(x) + " " + str(y))
+            path.append((x, y))
+            rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+        else:
+            a_x = -a_x_t
+            a_y = a_y_t
+            v_x = -v_x_t
+            v_y = v_y_t
+            x = int(round(path[-1][0] + v_x * dt + a_x * dt * dt / 2, 0))
+            y = int(round(path[-1][1] + v_y * dt + a_y * dt * dt / 2, 0))
+            #if not intersect_with_wall(pt(path[-1][0], path[-1][1]), pt(x, y), building) and x > 0 and x < 7 and y > 0 and y < 10:
+            if x >=0 and x < n and y >=0 and y < m:
+                v_x = v_x + a_x * dt
+                v_y = v_y + a_y * dt
+                print(2)
+                print(str(x) + " " + str(y))
+                path.append((x, y))
+                rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+            else:
+                a_x = -a_x_t
+                a_y = -a_y_t
+                v_x = -v_x_t
+                v_y = -v_y_t
+                x = int(round(path[-1][0] + v_x * dt + a_x * dt * dt / 2, 0))
+                y = int(round(path[-1][1] + v_y * dt + a_y * dt * dt / 2, 0))
+                #if not intersect_with_wall(pt(path[-1][0], path[-1][1]), pt(x, y), building) and x > 0 and x < 7 and y > 0 and y < 10:
+                if x >= 0 and x < n and y >= 0 and y < m:
+                    v_x = v_x + a_x * dt
+                    v_y = v_y + a_y * dt
+                    print(3)
+                    print(str(x) + " " + str(y))
+                    path.append((x, y))
+                    rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+                else:
+                    a_x = a_x_t
+                    a_y = -a_y_t
+                    v_x = v_x_t
+                    v_y = -v_y_t
+                    x = int(round(path[-1][0] + v_x * dt + a_x * dt * dt / 2, 0))
+                    y = int(round(path[-1][1] + v_y * dt + a_y * dt * dt / 2, 0))
+                    #if not intersect_with_wall(pt(path[-1][0], path[-1][1]), pt(x, y), building) and x > 0 and x < 7 and y > 0 and y < 10:
+                    if x >= 0 and x < n and y >= 0 and y < m:
+                        v_x = v_x + a_x * dt
+                        v_y = v_y + a_y * dt
+                        print(4)
+                        print(str(x) + " " + str(y))
+                        path.append((x, y))
+                        rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+                    else:
+                        a_x = 0
+                        a_y = 0
+                        v_x = v_x_t
+                        v_y = v_y_t
+                        x = path[-1][0]
+                        y = path[-1][1]
+                        print(5)
+                        print(str(x) + " " + str(y))
+                        path.append((x, y))
+                        rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+        '''
         v_x = v_x + a_x * dt
         v_y = v_y + a_y * dt
         print(str(x) + " " + str(y))
         path.append((x, y))
         rssi.append(np.random.normal(mu[x][y], sigma[x][y], 1))
+        '''
 
     return rssi, path
 
@@ -299,7 +383,7 @@ def error(path, path_est):
     print("Error : " + str(error))
 
 
-RSSI, path = path_generation(10)
+RSSI, path = path_generation(5)
 print("Test path:")
 print(path)
 
@@ -309,7 +393,7 @@ print(path_est)
 
 error(path, path_est)
 
-mu[mu == 0] = -55
+mu[mu == 0] = -45
 trace = go.Heatmap(z=mu.transpose())
 x = []
 y = []
