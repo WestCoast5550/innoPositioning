@@ -1,24 +1,15 @@
 import timeit
-
 import math
 import itertools
 import numpy as np
-
 import plotly
 import plotly.graph_objs as go
-
 import pickle
 
 EPS = 1E-9
-P0 = -40  # dBm
-reflection_coef = -12.11  # dBm
-transmission_coef = -0.4937  # dBm
-n = 5.0  # attenuation exponent (dBm)
-
-
-# cell_size = 0.5  # in meters
 
 # Tx - user, Rx - AP
+
 
 # Define classes for Point, Wall, Room and Building instances
 class Point:
@@ -33,17 +24,6 @@ class Point:
         self.x = x_
         self.y = y_
         self.z = z_
-
-    def __lt__(self, other):
-        self_ = (self.x ** 2) + (self.y ** 2)
-        other_ = (other.x ** 2) + (other.y ** 2)
-        return self_ < other_
-
-    def __sub__(self, other):
-        return Point(self.x - other.x, self.y - other.y, self.z - other.z)
-
-    def __mul__(self, other):
-        return self.x * other.x + self.y * other.y + self.z * other.z
 
     def is_equal(self, other):
         return self.x == other.x and self.y == other.y and self.z == other.z
@@ -94,7 +74,6 @@ class Room:
         self.width = width_
         self.height = height_
         self.walls = [wall1, wall2, wall3, wall4, ceil, floor]
-        # self.uvw = [wall4.p1 - wall1.p1, wall1.p2 - wall1.p1, wall1.p4 - wall1.p1]
 
     def __str__(self):
         for wall in self.walls:
@@ -102,8 +81,8 @@ class Room:
         return ''
 
 
-class Building503_05m:
-    AP = Point(8, 10, 2)
+class BuildingUniversity:
+    AP = Point(8, 10, 3)
     number_of_rooms = 2
     _3D_measures = [27, 18, 10]
 
@@ -142,7 +121,7 @@ class Building503_05m:
         return ''
 
 
-class BuildingDormitory_05m:
+class BuildingDormitory:
     AP = Point(11, 14, 2)
     number_of_rooms = 6
     _3D_measures = [24, 17, 8]
@@ -258,14 +237,6 @@ def get_direction_vector(a, b):
     return [b.x - a.x, b.y - a.y, b.z - a.z]
 
 
-'''def is_pos_in_same_room_with_AP(position, building):
-    room_with_AP = building.AP.assigned_room
-    s = position - room_with_AP.walls[0].p1
-    uvw = room_with_AP.uvw
-    return 0 < s * uvw[0] < uvw[0] * uvw[0] and 0 < s * uvw[1] < uvw[1] * uvw[1] and 0 < s * uvw[2] < uvw[2] * uvw[2]
-'''
-
-
 def calculate_transmissions(p1, p2, building):
     transmission_num = 0
     for wall in building.all_walls:
@@ -274,23 +245,21 @@ def calculate_transmissions(p1, p2, building):
     return transmission_num
 
 
-def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx, building):
+def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx, building, cell_size):
     paths = []
     ray_distance_threshold = 100
-    transmissions_threshold = 100
-    is_transmissions_considered = True  # not is_pos_in_same_room_with_AP(Tx, building)
+    transmissions_threshold = 5
 
     if reflection_number == 0:
         traversed_distance = calculate_traversed_distance(Tx, Rx) * cell_size
         transmission_num = 0
-        if is_transmissions_considered:
-            transmission_num = calculate_transmissions(Rx, Tx, building)
+        transmission_num = calculate_transmissions(Rx, Tx, building)
         # if traversed distance is too long or too many wall transmissions - skip this path
         if traversed_distance > ray_distance_threshold or transmission_num > transmissions_threshold:
             return paths
         # else find this path if exists
-        paths = [[Rx, Tx, traversed_distance,
-                  transmission_num]]  # path[-2] contains traversed distance, path[-1] - number of tramsmissions during path
+        paths = [[Rx, Tx, traversed_distance, transmission_num]]  # path[-2] contains traversed distance,
+                                                                  # path[-1] - number of tramsmissions during path
     else:
         for i in last_layer:
             transmission_num = 0
@@ -308,11 +277,10 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
             wall = image_point.assigned_wall
             intersection_point = get_intersection_point(Tx, image_point, wall)
             if intersection_point != -1:
-                if is_transmissions_considered:
-                    transmission_num += calculate_transmissions(Tx, intersection_point, building)
-                    # if too many wall transmissions - skip this path
-                    if transmission_num > transmissions_threshold:
-                        continue
+                transmission_num += calculate_transmissions(Tx, intersection_point, building)
+                # if too many wall transmissions - skip this path
+                if transmission_num > transmissions_threshold:
+                    continue
                 path.append(intersection_point)
             else:
                 path.clear()
@@ -325,11 +293,10 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
                 wall = image_point.assigned_wall
                 intersection_point = get_intersection_point(path[-1], image_point, wall)
                 if intersection_point != -1:
-                    if is_transmissions_considered:
-                        transmission_num += calculate_transmissions(path[-1], intersection_point, building)
-                        # if too many wall transmissions - skip this path
-                        if transmission_num > transmissions_threshold:
-                            continue
+                    transmission_num += calculate_transmissions(path[-1], intersection_point, building)
+                    # if too many wall transmissions - skip this path
+                    if transmission_num > transmissions_threshold:
+                        continue
                     is_correct = True
                     path.append(intersection_point)
                 else:
@@ -337,36 +304,33 @@ def calculate_reflection_paths(image_tree, last_layer, reflection_number, Tx, Rx
                     is_correct = False
                     break
             if is_correct:
-                if is_transmissions_considered:
-                    transmission_num += calculate_transmissions(path[-1], Rx, building)
-                    # if too many wall transmissions - skip this path
-                    if transmission_num > transmissions_threshold:
-                        continue
+                transmission_num += calculate_transmissions(path[-1], Rx, building)
+                # if too many wall transmissions - skip this path
+                if transmission_num > transmissions_threshold:
+                    continue
                 path.append(Rx)
                 path.reverse()
-                path.append(
-                    transmission_num)  # path[-2] contains traversed distance, path[-1] - number of tramsmissions during path
+                path.append(transmission_num)  # path[-2] contains traversed distance, path[-1] - number of
+                                               # transmissions during path
                 paths.append(path)
 
     return paths
 
 
-def get_all_paths(image_tree, Tx, Rx, building):
+def get_all_paths(image_tree, Tx, Rx, building, cell_size):
     reflection_number = 0
-    paths = [calculate_reflection_paths(image_tree, 0, reflection_number, Tx, Rx, building)]
+    paths = [calculate_reflection_paths(image_tree, 0, reflection_number, Tx, Rx, building, cell_size)]
     reflection_number = 1
-    paths.append(
-        calculate_reflection_paths(image_tree, image_tree.get_children_indices(0), reflection_number, Tx, Rx, building))
+    paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(0),
+                                            reflection_number, Tx, Rx, building, cell_size))
     reflection_number = 2
 
     for i in image_tree.get_children_indices(0):
-        paths.append(
-            calculate_reflection_paths(image_tree, image_tree.get_children_indices(i), reflection_number, Tx, Rx,
-                                       building))
+        paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(i),
+                                                reflection_number, Tx, Rx, building, cell_size))
         for j in image_tree.get_children_indices(i):
-            paths.append(
-                calculate_reflection_paths(image_tree, image_tree.get_children_indices(j), reflection_number + 1, Tx,
-                                           Rx, building))
+            paths.append(calculate_reflection_paths(image_tree, image_tree.get_children_indices(j),
+                                                    reflection_number + 1, Tx, Rx, building, cell_size))
 
     return list(itertools.chain.from_iterable(paths))
 
@@ -441,53 +405,56 @@ def build_image_tree(Tx, walls):
     return image_tree
 
 
-#######################################################################################################################
 def calculate_traversed_distance(a, b):
     return math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2)
 
 
 # for one position
 # from ARIADNE
-def get_signal_strength(image_tree, Tx, Rx, building):
+def get_signal_strength(image_tree, Tx, Rx, building, cell_size, P0, attenuation_exponent, reflection_coef,
+                        transmission_coef):
     if Tx.is_equal(Rx):
-        return 0  # TODO
-    paths = get_all_paths(image_tree, Tx, Rx, building)
+        return 0
+    paths = get_all_paths(image_tree, Tx, Rx, building, cell_size)
 
     # calculate signal strength for each path, then sum
     signal_strength = 0
 
     for path in paths:
-        num_of_reflections = len(
-            path) - 4  # len(path) minus start point, end point, path length stored in path[-2] and number of transmissions stored n path[-1]
+        num_of_reflections = len(path) - 4  # len(path) minus start point, end point, path length stored in path[-2]
+                                            # and number of transmissions stored n path[-1]
         num_of_transmissions = path[-1]
         traversed_distance = path[-2]
-        signal_strength += 10 ** ((P0 - 10 * n * math.log10(traversed_distance) -
+        signal_strength += 10 ** ((P0 - 10 * attenuation_exponent * math.log10(traversed_distance) -
                                    reflection_coef * num_of_reflections -
-                                   transmission_coef * num_of_transmissions) / 10)
-    signal_strength_dBm = 10 * math.log10(signal_strength)
+                                   transmission_coef * num_of_transmissions) / 10)  # sum in mW
+    signal_strength_dBm = 10 * math.log10(signal_strength)  # to dBm
     return int(round(signal_strength_dBm))
 
 
-def calculate_signal_strength_matrix(building, signal_strength_matrix):
+def calculate_signal_strength_matrix(building, signal_strength_matrix, cell_size, P0, attenuation_exponent,
+                                     reflection_coef, transmission_coef, z=0,):
     image_tree = build_image_tree(building.AP, building.all_walls)
 
-    '''#for room in building.rooms:
-    for i in range(0, len(building.rooms)):
-        if i == 1:
-            room = building.rooms[i]
+    if z == 0:
+        # calculation for all 3D space
+        for room in building.rooms:
             for x in range(room.walls[0].p1.x + 1, room.walls[0].p2.x):
                 for y in range(room.walls[3].p2.y + 1, room.walls[3].p1.y):
-                    #for z in range(room.walls[0].p1.z + 1, room.walls[0].p4.z):
-                    for z in range(1, building._3D_measures[2]-1):
+                    for z in range(room.walls[0].p1.z + 1, room.walls[0].p4.z):
                         signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP,
-                                                                          building)
-    '''
-    for room in building.rooms:
-        for x in range(room.walls[0].p1.x + 1, room.walls[0].p2.x):
-            for y in range(room.walls[3].p2.y + 1, room.walls[3].p1.y):
-                for z in range(room.walls[0].p1.z + 1, room.walls[0].p4.z):
-                    signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP,
-                                                                          building)
+                                                                              building, cell_size, P0,
+                                                                              attenuation_exponent, reflection_coef,
+                                                                              transmission_coef)
+    else:
+        # calculation for one height
+        for room in building.rooms:
+            for x in range(room.walls[0].p1.x + 1, room.walls[0].p2.x):
+                for y in range(room.walls[3].p2.y + 1, room.walls[3].p1.y):
+                        signal_strength_matrix[x][y][z] = get_signal_strength(image_tree, Point(x, y, z), building.AP,
+                                                                              building, cell_size, P0,
+                                                                              attenuation_exponent, reflection_coef,
+                                                                              transmission_coef)
 
 
 def serialize(data, filename):
@@ -495,53 +462,223 @@ def serialize(data, filename):
         pickle.dump(data, f)
 
 
-def deserialize():
-    with open('data.pickle', 'rb') as f:
+def deserialize(filename):
+    with open(filename, 'rb') as f:
         return pickle.load(f)
 
 
-#######################################################################################################################
-
-building = BuildingDormitory_05m()
-cell_size = 1.0  # in meters
-
-signal_strength_matrix = np.zeros((building._3D_measures[0], building._3D_measures[1], building._3D_measures[2]))
-signal_strength_matrix = signal_strength_matrix.astype(np.int32)
-
-'''for y in range(building._3D_measures[1]-1, -1, -1):
-    for x in range(0, building._3D_measures[0]):
-        signal_strength_matrix[x][y][1]=-40'''
-
-t = timeit.default_timer()
-calculate_signal_strength_matrix(building, signal_strength_matrix)
-print("time")
-print(timeit.default_timer() - t)
-print()
-
-### !! serialization
-#serialize(signal_strength_matrix, 'signal_strength_matrix_dorm_05')
-
-### !! deserialization
-signal_strength_matrix = deserialize()
-
-for y in range(building._3D_measures[1] - 1, -1, -1):
-    for x in range(0, building._3D_measures[0]):
-        print("%3d" % signal_strength_matrix[x][y][1], end=' ')
-    print()
-
-data = [
-    go.Heatmap(z=signal_strength_matrix[:, :, 1].transpose())
-]
-plotly.offline.plot(data, filename='basic-heatmap3.html')
+def mean_error(predictions, targets):
+    return (predictions - targets).mean()
 
 
 def rmse(predictions, targets):
-    return (predictions - targets).mean()  # np.sqrt(((predictions - targets) ** 2).mean())
+    return np.sqrt(((predictions - targets) ** 2).mean())
+
+#######################################################################################################################
 
 
+def test_university(P0, test_data):
+    reflection_coef = -12.11*0.7  # dBm
+    transmission_coef = -0.4937*0.7  # dBm
+    attenuation_exponent = 5.0  # attenuation exponent (dBm)
+    cell_size = 0.5  # in meters
 
-dormitory_AP = [64, 71, 61, 43, 54, 56, 66, 70, 57, 66, 63, 62, 64, 61, 64, 72, 73]
-dormitory_laptop = [55, 60, 53, 35, 46, 48, 57, 59, 47, 54, 53, 53, 51, 52, 52, 62, 60]
+    building = BuildingUniversity()
 
-university_AP = [56, 60, 63, 61, 57, 51, 56, 67, 64, 68, 65, 66, 65, 63, 65, 70]
-university_laptop = [47, 52, 55, 51, 48, 45, 49, 58, 53, 61, 57, 59, 57, 54, 52, 63]
+    signal_strength_matrix = np.zeros((building._3D_measures[0], building._3D_measures[1], building._3D_measures[2]))
+    signal_strength_matrix = signal_strength_matrix.astype(np.int32)
+
+    # specify z coordinate to calculate ONLY for that height
+    z = 2  # ~0.5 - 1m from floor if cell_size == 0.5m
+
+    t = timeit.default_timer()
+    calculate_signal_strength_matrix(building, signal_strength_matrix, cell_size, P0, attenuation_exponent,
+                                     reflection_coef, transmission_coef, z)
+    print("time: ", timeit.default_timer() - t)
+    print()
+
+    ### !! serialization
+    #serialize(signal_strength_matrix, 'signal_strength_matrix_university')
+
+    ### !! deserialization
+    #signal_strength_matrix = deserialize('signal_strength_matrix_university')
+
+    # 0.5 - 1m
+    for y in range(building._3D_measures[1] - 1, -1, -1):
+        for x in range(0, building._3D_measures[0]):
+            print("%3d" % signal_strength_matrix[x][y][z], end=' ')
+        print()
+
+    map_layer = signal_strength_matrix[:, :, z]
+    min = map_layer.min()
+    for i in range(0, map_layer.shape[0]):
+        for j in range(0, map_layer.shape[1]):
+            if map_layer[i][j] == 0:
+                map_layer[i][j] = min
+
+    data = [
+        go.Heatmap(z=map_layer.transpose())
+    ]
+    plotly.offline.plot(data, filename='basic-heatmap4.html')
+
+    university_generated = np.array([
+        signal_strength_matrix[4][14][2],
+        signal_strength_matrix[4][11][2],
+        signal_strength_matrix[4][7][2],
+        signal_strength_matrix[4][3][2],
+        signal_strength_matrix[9][14][2],
+        signal_strength_matrix[9][11][2],
+        signal_strength_matrix[9][7][2],
+        signal_strength_matrix[9][3][2],
+        signal_strength_matrix[17][14][2],
+        signal_strength_matrix[17][11][2],
+        signal_strength_matrix[17][7][2],
+        signal_strength_matrix[17][3][2],
+        signal_strength_matrix[22][14][2],
+        signal_strength_matrix[22][11][2],
+        signal_strength_matrix[22][7][2],
+        signal_strength_matrix[22][3][2]
+    ])
+
+    print("mean error:")
+    print(mean_error(university_generated, test_data))
+    print("root mean squared error:")
+    print(rmse(university_generated, test_data))
+
+    print("generated")
+    print(university_generated)
+    print("test")
+    print(test_data)
+
+
+def test_dormitory(P0, test_data):
+    reflection_coef = -12.11*0.7  # dBm
+    transmission_coef = -0.4937*0.7  # dBm
+    attenuation_exponent = 5.0  # attenuation exponent (dBm)
+    cell_size = 0.5  # in meters
+
+    building = BuildingDormitory()
+
+    signal_strength_matrix = np.zeros((building._3D_measures[0], building._3D_measures[1], building._3D_measures[2]))
+    signal_strength_matrix = signal_strength_matrix.astype(np.int32)
+
+    # specify z coordinate to calculate ONLY for that height
+    z = 2  # ~0.5 - 1m from floor if cell_size == 0.5m
+
+    t = timeit.default_timer()
+    calculate_signal_strength_matrix(building, signal_strength_matrix, cell_size, P0, attenuation_exponent,
+                                     reflection_coef, transmission_coef, z)
+    print("time: ", timeit.default_timer() - t)
+    print()
+
+    ### !! serialization
+    #serialize(signal_strength_matrix, 'signal_strength_matrix_dormitory')
+
+    ### !! deserialization
+    #signal_strength_matrix = deserialize('signal_strength_matrix_dormitory')
+
+    # 0.5 - 1m
+    for y in range(building._3D_measures[1] - 1, -1, -1):
+        for x in range(0, building._3D_measures[0]):
+            print("%3d" % signal_strength_matrix[x][y][z], end=' ')
+        print()
+
+    map_layer = signal_strength_matrix[:, :, z]
+    min = map_layer.min()
+    for i in range(0, map_layer.shape[0]):
+        for j in range(0, map_layer.shape[1]):
+            if map_layer[i][j] == 0:
+                map_layer[i][j] = min
+
+    data = [
+        go.Heatmap(z=map_layer.transpose())
+    ]
+    plotly.offline.plot(data, filename='basic-heatmap4.html')
+
+    dormitory_generated = np.array([
+        signal_strength_matrix[4][13][2],
+        signal_strength_matrix[4][10][2],
+        signal_strength_matrix[4][7][2],
+        signal_strength_matrix[12][12][2],
+        signal_strength_matrix[12][10][2],
+        signal_strength_matrix[12][7][2],
+        signal_strength_matrix[8][2][2],
+        signal_strength_matrix[10][2][2],
+        signal_strength_matrix[13][2][2],
+        signal_strength_matrix[16][2][2],
+        signal_strength_matrix[21][14][2],
+        signal_strength_matrix[18][14][2],
+        signal_strength_matrix[18][11][2],
+        signal_strength_matrix[18][8][2],
+        signal_strength_matrix[22][8][2],
+        signal_strength_matrix[19][2][2],
+        signal_strength_matrix[21][2][2]
+    ])
+
+    print("mean error:")
+    print(mean_error(dormitory_generated, test_data))
+    print("root mean squared error:")
+    print(rmse(dormitory_generated, test_data))
+
+    print("generated")
+    print(dormitory_generated)
+    print("test")
+    print(test_data)
+
+
+def test(test_plan, test_target):
+    P0_AP = -53  # (dBm) from AP
+    P0_lap = -43  # (dBm) from laptop
+
+    if test_plan == "university":
+        university_AP_test = np.array([-56, -60, -63, -61, -57, -51, -56, -67, -64, -68, -65, -66, -65, -63, -65, -70])
+        university_laptop_test = np.array([-47, -52, -55, -51, -48, -45, -49, -58, -53, -61, -57, -59, -57, -54, -52, -63])
+
+        if test_target == "AP":
+            print("University AP test")
+            test_university(P0_AP, university_AP_test)
+        elif test_target == "laptop":
+            print("University laptop test")
+            test_university(P0_lap, university_laptop_test)
+        elif test_target == "both":
+            print("University AP test")
+            test_university(P0_AP, university_AP_test)
+            print("University laptop test")
+            test_university(P0_lap, university_laptop_test)
+        else:
+            print("something went wrong")
+    elif test_plan == "dormitory":
+        dormitory_AP_test = np.array([-64, -71, -61, -43, -54, -56, -66, -70, -57, -66, -63, -62, -64, -61, -64, -72, -73])
+        dormitory_laptop_test = np.array([-55, -60, -53, -35, -46, -48, -57, -59, -47, -54, -53, -53, -51, -52, -52, -62, -60])
+
+        if test_target == "AP":
+            print("Dormitory AP test")
+            test_dormitory(P0_AP, dormitory_AP_test)
+            print()
+        elif test_target == "laptop":
+            print("Dormitory laptop test")
+            test_dormitory(P0_lap, dormitory_laptop_test)
+            print()
+        elif test_target == "both":
+            print("Dormitory AP test")
+            test_dormitory(P0_AP, dormitory_AP_test)
+            print()
+            print("Dormitory laptop test")
+            test_dormitory(P0_lap, dormitory_laptop_test)
+            print()
+        else:
+            print("something went wrong")
+    else:
+        print("something went wrong")
+
+
+def main():
+    # call test(test_plan, test_target) with options:
+    # test_plan: "university" or "dormitory"
+    # test_target: "AP", "laptop" or "both"
+    
+    test("university", "both")
+    #test("dormitory", "both")
+
+
+main()
