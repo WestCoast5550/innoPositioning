@@ -24,12 +24,13 @@ class Wall:
     p3 = Point
     p4 = Point
 
-    def __init__(self, p1, p2, p3, p4):
+    def __init__(self, p1, p2, p3, p4,id):
         self.p1 = Point(p1.x, p1.y, p1.z)
         self.p2 = Point(p2.x, p2.y, p2.z)
         self.p3 = Point(p3.x, p3.y, p3.z)
         self.p4 = Point(p4.x, p4.y, p4.z)
         self.plane_equation = self.get_plane_equation()
+        self.id = id
 
     def __str__(self):
         print(self.p1)
