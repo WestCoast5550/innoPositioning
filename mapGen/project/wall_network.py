@@ -1,3 +1,4 @@
+import numpy as np
 from walls_representation import Point, Wall
 class wall_network:
 
@@ -118,20 +119,75 @@ class Sector:
         self.walls = []
 
 
-  #  def __sector__is__intersected__with__line(self):
+    def sector__intersected__with__line(self,line):
+        edge1 = Line(self.p1,self.p2)
+        edge2 = Line(self.p2, self.p3)
+        edge3 = Line(self.p3, self.p4)
+        edge4 = Line(self.p4, self.p1)
+        if ((self.line__intersected__with__line(line,edge1)) == 1):
+            return 1
+        elif ((self.line__intersected__with__line(line, edge2)) == 1):
+            return 1
+        elif ((self.line__intersected__with__line(line, edge3)) == 1):
+            return 1
+        elif ((self.line__intersected__with__line(line, edge4)) == 1):
+            return 1
+        else :
+            return 0
+
+    def line__intersected__with__line(self,line1,line2):
+        a = line1.p1.y - line1.p2.y
+        b = line1.p2.x - line1.p1.x
+        c = (line1.p2.y - line1.p1.y) * line1.p1.x - (line1.p2.x - line1.p1.x) * line1.p1.y
+
+        d = line2.p1.y - line2.p2.y
+        e = line2.p2.x - line2.p1.x
+        f = (line2.p2.y - line2.p1.y) * line2.p1.x - (line2.p2.x - line2.p1.x) * line2.p1.y
+
+        den = (-d * b + a * e)
+
+        if (den == 0):
+            return 0
+
+        y = (c * d - f * a) / den
+        x = (b * f - c * e) / den
+
+        ip = [x,y]
+        print("x=",x,y)
+        p1 = np.array([line1.p1.x, line1.p1.y])
+        p2 = np.array([line1.p2.x, line1.p2.y])
+        p3 = np.array([line2.p1.x, line2.p1.y])
+        p4 = np.array([line2.p2.x, line1.p2.y])
+
+        if (np.dot(p1- ip, p2 - ip) <= 0) and (np.dot(p3 - ip, p4 - ip) <= 0):
+            return 1
+        else:
+            return 0
+
+
+
+
 
 class Line:
     def __init__(self,p1,p2):
         self.p1 = p1
         self.p2 = p2
+p1 = Point(2,2,300)
+p2 = Point(4,2,300)
+p3 = Point(2,4,300)
+p4 = Point(4,4,300)
 
-p1 = Point(0,0,300)
-p2 = Point(0,6,300)
-p3 = Point(6,6,300)
-p4 = Point(6,0,300)
-boundaries = []
-wall = wall_network(p1,p2,p3,p4,boundaries)
-wall.make__sectors()
-point = Point(0,5.5,300)
-wall.point__is__in__sector(point)
-print(wall.sector__list)
+sector =  Sector(p1,p2,p3,p4,1)
+line = Line(Point(1,1,300),Point(1,5,300))
+print(sector.sector__intersected__with__line(line))
+
+
+print ("Elapsed time: {:.3f} sec".format(time.time() - self._startTime))
+
+
+# boundaries = []
+# wall = wall_network(p1,p2,p3,p4,boundaries)
+# wall.make__sectors()
+# point = Point(0,5.5,300)
+# wall.point__is__in__sector(point)
+# print(wall.sector__list)
