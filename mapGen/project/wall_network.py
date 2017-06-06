@@ -118,6 +118,13 @@ class Sector:
         self.walls = []
 
 
+  #  def __sector__is__intersected__with__line(self):
+
+class Line:
+    def __init__(self,p1,p2):
+        self.p1 = p1
+        self.p2 = p2
+
 p1 = Point(0,0,300)
 p2 = Point(0,6,300)
 p3 = Point(6,6,300)
